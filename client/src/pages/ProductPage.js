@@ -4,6 +4,8 @@ import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
+import API_BASE_URL from "../api";
+
 
 const ProductPage = () => {
   const { id } = useParams();
@@ -28,13 +30,25 @@ const ProductPage = () => {
   const fetchProductAndWishlist = async () => {
     try {
       setLoading(true); 
-      const productPromise = axios.get(`http://localhost:5000/api/products/${id}`);
-      const relatedPromise = axios.get(`http://localhost:5000/api/products/${id}/related`);
+      const productPromise = axios.get(
+        `${API_BASE_URL}/api/products/${id}`
+      );
+
+      const relatedPromise = axios.get(
+      `${API_BASE_URL}/api/products/${id}/related`
+      );
+
       
       let wishlistPromise = Promise.resolve({ data: [] });
       if (user) {
         const token = localStorage.getItem('token');
-        wishlistPromise = axios.get('http://localhost:5000/api/users/wishlist', { headers: { Authorization: `Bearer ${token}` } });
+        wishlistPromise = axios.get(
+          `${API_BASE_URL}/api/users/wishlist`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+
       }
 
       const [res, relatedRes, wishRes] = await Promise.all([
@@ -136,10 +150,12 @@ const ProductPage = () => {
     try {
         const token = localStorage.getItem('token');
         if (previousState) {
-            await axios.delete(`http://localhost:5000/api/users/wishlist/${product._id}`, { headers: { Authorization: `Bearer ${token}` } });
+            await axios.delete(`${API_BASE_URL}/api/users/wishlist/${product._id}`, { headers: { Authorization: `Bearer ${token}` } });
+
             toast.success("Removed from Wishlist");
         } else {
-            await axios.post('http://localhost:5000/api/users/wishlist', { productId: product._id }, { headers: { Authorization: `Bearer ${token}` } });
+            await axios.post(`${API_BASE_URL}/api/users/wishlist`, { productId: product._id }, { headers: { Authorization: `Bearer ${token}` } });
+
             toast.success("Added to Wishlist ❤️");
         }
     } catch (error) { setIsInWishlist(previousState); toast.error("Error updating wishlist"); }
@@ -151,9 +167,11 @@ const ProductPage = () => {
     if (!user) return navigate('/login');
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:5000/api/products/${id}/reviews`, { rating, comment: reviewText }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.post(`${API_BASE_URL}/api/products/${id}/reviews`, { rating, comment: reviewText }, { headers: { Authorization: `Bearer ${token}` } });
+
       toast.success('Review Submitted!');
-      const { data } = await axios.get(`http://localhost:5000/api/products/${id}`);
+      const { data } = await axios.get(`${API_BASE_URL}/api/products/${id}`);
+
       setProduct(data);
       setReviewText(''); setRating(5);
     } catch (err) { toast.error(err.response?.data?.message || 'Error submitting review'); }
@@ -164,9 +182,11 @@ const ProductPage = () => {
     if (result.isConfirmed) {
       try {
           const token = localStorage.getItem('token');
-          await axios.delete(`http://localhost:5000/api/products/${id}/reviews/${reviewId}`, { headers: { Authorization: `Bearer ${token}` } });
+          await axios.delete(`${API_BASE_URL}/api/products/${id}/reviews/${reviewId}`, { headers: { Authorization: `Bearer ${token}` } });
+
           toast.success('Deleted');
-          const { data } = await axios.get(`http://localhost:5000/api/products/${id}`);
+          const { data } = await axios.get(`${API_BASE_URL}/api/products/${id}`);
+
           setProduct(data);
       } catch (err) { toast.error("Failed to delete review"); }
     }

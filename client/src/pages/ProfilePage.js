@@ -2,6 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import API_BASE_URL from "../api";
+
 
 // Libraries
 import PhoneInput from 'react-phone-input-2';
@@ -49,11 +51,13 @@ const ProfilePage = () => {
       if (!token) { navigate('/login'); return; }
       const config = { headers: { Authorization: `Bearer ${token}` } };
 
-      const { data } = await axios.get('http://localhost:5000/api/users/profile', config);
+      const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, config);
+
       setUserProfile({ name: data.name || '', email: data.email || '', phone: data.phone || '' });
       setAddresses(data.addresses || []);
 
-      const orderRes = await axios.get('http://localhost:5000/api/orders/myorders', config);
+      const orderRes = await axios.get(`${API_BASE_URL}/api/orders/myorders`, config);
+
       setOrders(orderRes.data);
 
     } catch (error) { console.error(error); navigate('/login'); }
@@ -69,7 +73,8 @@ const ProfilePage = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      await axios.put('http://localhost:5000/api/users/profile', { name: userProfile.name, phone: userProfile.phone }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(`${API_BASE_URL}/api/users/profile`,
+         { name: userProfile.name, phone: userProfile.phone }, { headers: { Authorization: `Bearer ${token}` } });
       toast.success("Profile Updated!");
     } catch (error) { toast.error("Error updating profile"); }
   };
@@ -79,7 +84,8 @@ const ProfilePage = () => {
     if(!newAddress.address || !newAddress.city || !newAddress.country) return toast.error("Fill required fields");
     try {
         const token = localStorage.getItem('token');
-        const { data } = await axios.post('http://localhost:5000/api/users/address', newAddress, { headers: { Authorization: `Bearer ${token}` } });
+        const { data } = await axios.post(`${API_BASE_URL}/api/users/address`,
+        newAddress, { headers: { Authorization: `Bearer ${token}` } });
         setAddresses(data); setIsAddingNew(false); 
         setNewAddress({ address: '', city: '', state: '', country: '', postalCode: '', phone: '', isDefault: false }); 
         toast.success("Address Added!");
@@ -90,9 +96,10 @@ const ProfilePage = () => {
   const handleSetDefaultAddress = async (id) => {
     try {
         const token = localStorage.getItem('token');
-        const { data } = await axios.put(`http://localhost:5000/api/users/address/${id}/default`, {}, { headers: { Authorization: `Bearer ${token}` } });
+        const { data } = await axios.put(`${API_BASE_URL}/api/users/address/${id}/default`, {}, 
+         { headers: { Authorization: `Bearer ${token}` } });
         setAddresses(data); toast.success("Default Updated");
-    } catch (error) { toast.error("Failed update"); }
+        } catch (error) { toast.error("Failed update"); }
   };
 
   const handleDeleteAddress = async (id) => {
@@ -100,7 +107,8 @@ const ProfilePage = () => {
       if (result.isConfirmed) {
           try {
               const token = localStorage.getItem('token');
-              const { data } = await axios.delete(`http://localhost:5000/api/users/address/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+              const { data } = await axios.delete(`${API_BASE_URL}/api/users/address/${id}`,
+            { headers: { Authorization: `Bearer ${token}` } });
               setAddresses(data); toast.success("Deleted");
           } catch (error) { toast.error("Failed"); }
       }

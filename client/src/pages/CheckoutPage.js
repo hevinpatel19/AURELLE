@@ -5,6 +5,8 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom'; 
 import toast from 'react-hot-toast';
+import API_BASE_URL from "../api";
+
 
 // Replace with your actual Publishable Key
 const stripePromise = loadStripe('pk_test_51STyR8IkuLiRZrCBt3MgxdMfWISebWu7LDSTUYarsLWYdkGZ4eluBnbUB7UP8BG8hYaVinhDDcJ7nGUhTsScaaZq00rw102IfK'); 
@@ -33,7 +35,8 @@ const CheckoutForm = () => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
-           const { data } = await axios.get('http://localhost:5000/api/users/profile', {
+           const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, {
+
               headers: { Authorization: `Bearer ${token}` }
            });
            setProfileData(data);
@@ -90,7 +93,8 @@ const CheckoutForm = () => {
             isPaid: isPaidStatus 
           };
 
-          await axios.post('http://localhost:5000/api/orders', orderData, {
+          await axios.post(`${API_BASE_URL}/api/orders`, orderData, {
+
             headers: { Authorization: `Bearer ${token}` }
           });
 
@@ -111,8 +115,8 @@ const CheckoutForm = () => {
     if (paymentMethod === 'card') {
         if (!stripe || !elements) return;
         try {
-            const { data: { clientSecret } } = await axios.post(
-                'http://localhost:5000/api/payment/create-payment-intent', 
+            const { data: { clientSecret } } = await axios.post(`${API_BASE_URL}/api/payment/create-payment-intent`,
+
                 { amount: finalTotal * 100 } 
             );
             const result = await stripe.confirmCardPayment(clientSecret, {

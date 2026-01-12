@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useParams, Link } from 'react-router-dom';
+import API_BASE_URL from "../api";
+
 
 const CategoryPage = () => {
   const { categoryId } = useParams();
@@ -22,12 +24,12 @@ const CategoryPage = () => {
   useEffect(() => {
     setLoading(true);
     axios
-      .get(`http://localhost:5000/api/products/category/${categoryId}`)
+      .get(`${API_BASE_URL}/api/products/category/${categoryId}`)
       .then(res => setProducts(res.data))
       .catch(err => console.error(err));
 
     axios
-      .get('http://localhost:5000/api/categories')
+      .get(`${API_BASE_URL}/api/categories`)
       .then(res => {
         const cat = res.data.find(c => c._id === categoryId);
         if (cat) setCatName(cat.name);

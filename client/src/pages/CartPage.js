@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import API_BASE_URL from "../api";
+
 
 const CartPage = () => {
   // These functions now accept (productId, ..., size)
@@ -24,7 +26,8 @@ const CartPage = () => {
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return toast.error("Enter a code");
     try {
-      const { data } = await axios.post('http://localhost:5000/api/coupons/validate', { couponCode });
+      const { data } = await axios.post(`${API_BASE_URL}/api/coupons/validate`, { couponCode });
+
       setDiscountPercent(data.discountPercentage);
       setAppliedCodeName(data.code);
       setIsCouponApplied(true);
@@ -49,7 +52,8 @@ const CartPage = () => {
       const token = localStorage.getItem('token');
       if (!token) { navigate('/login'); return; }
       
-      const { data } = await axios.get('http://localhost:5000/api/users/profile', {
+      const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, {
+
         headers: { Authorization: `Bearer ${token}` }
       });
 

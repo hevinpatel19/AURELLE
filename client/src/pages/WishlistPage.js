@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import API_BASE_URL from "../api";
+
 
 const WishlistPage = () => {
   const [wishlist, setWishlist] = useState([]);
@@ -13,7 +15,8 @@ const WishlistPage = () => {
       const token = localStorage.getItem('token');
       if (!token) return;
 
-      const { data } = await axios.get('http://localhost:5000/api/users/wishlist', {
+      const { data } = await axios.get(`${API_BASE_URL}/api/users/wishlist`, {
+
         headers: { Authorization: `Bearer ${token}` }
       });
       setWishlist(data);
@@ -33,7 +36,8 @@ const WishlistPage = () => {
   const handleRemove = async (productId) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/users/wishlist/${productId}`, {
+      await axios.delete(`${API_BASE_URL}/api/users/wishlist/${productId}`, {
+
         headers: { Authorization: `Bearer ${token}` }
       });
       toast.success("Removed from wishlist");

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
 import './Navbar.css';
+import API_BASE_URL from "../api";
+
 
 const Navbar = () => {
   const { isAuthenticated, cart, user } = useContext(AuthContext);
@@ -17,9 +19,11 @@ const Navbar = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const catRes = await axios.get('http://localhost:5000/api/categories');
+        const catRes = await axios.get(`${API_BASE_URL}/api/categories`);
+
         setCategories(catRes.data);
-        const prodRes = await axios.get('http://localhost:5000/api/products');
+        const prodRes = await axios.get(`${API_BASE_URL}/api/products`);
+
         setAllProducts(prodRes.data);
       } catch (error) {
         console.error('Error fetching data:', error);

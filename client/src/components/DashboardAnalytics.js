@@ -13,7 +13,8 @@ const DashboardAnalytics = () => {
     const fetchStats = async () => {
       try {
         const token = localStorage.getItem('token');
-        const { data } = await axios.get('http://localhost:5000/api/stats', {
+        const { data } = await axios.get(`${API_BASE_URL}/api/stats`, {
+
             headers: { Authorization: `Bearer ${token}` }
         });
         setStats(data);

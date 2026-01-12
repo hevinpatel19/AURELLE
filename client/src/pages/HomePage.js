@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import API_BASE_URL from "../api";
+
 
 // --- CONSTANTS & ASSETS ---
 const IMAGES = {
@@ -33,8 +35,10 @@ const HomePage = () => {
     const fetchData = async () => {
       try {
         const [featRes, catRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/products/featured'),
-          axios.get('http://localhost:5000/api/categories')
+          axios.get(`${API_BASE_URL}/api/products/featured`),
+
+          axios.get(`${API_BASE_URL}/api/categories`)
+
         ]);
         setProducts(featRes.data);
         setCategories(catRes.data);

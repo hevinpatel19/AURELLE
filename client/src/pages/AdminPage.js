@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import DashboardAnalytics from '../components/DashboardAnalytics'; 
 import CouponManager from '../components/CouponManager';
+import API_BASE_URL from "../api";
+
 
 // =========================================================================
 // 1. ORDER MANAGEMENT COMPONENT
@@ -15,7 +17,8 @@ const OrderManagement = ({ token }) => {
 
   const fetchOrders = async () => {
     try {
-      const { data } = await axios.get('http://localhost:5000/api/orders', {
+      const { data } = await axios.get(`${API_BASE_URL}/api/orders`, {
+
         headers: { Authorization: `Bearer ${token}` },
       });
       setOrders(data);
@@ -31,7 +34,8 @@ const OrderManagement = ({ token }) => {
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      await axios.put(`http://localhost:5000/api/orders/${id}/status`, 
+      await axios.put(`${API_BASE_URL}/api/orders/${id}/status`, 
+
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -163,7 +167,8 @@ const AddComponents = ({ token, categories, fetchData }) => {
   const handleCreateCategory = async (e) => { 
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/categories', { name: newCategoryName }, authHeader);
+      await axios.post(`${API_BASE_URL}/api/categories`, { name: newCategoryName }, authHeader);
+
       toast.success('Category created!');
       setNewCategoryName('');
       fetchData(); 
@@ -173,7 +178,8 @@ const AddComponents = ({ token, categories, fetchData }) => {
   const handleDeleteCategory = async (categoryId) => { 
     const result = await Swal.fire({ title: 'Delete Category?', text: "This will also delete all products in this category!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#1a1a1a', cancelButtonColor: '#dc2626', confirmButtonText: 'Yes, delete it!' });
     if (result.isConfirmed) {
-      try { await axios.delete(`http://localhost:5000/api/categories/${categoryId}`, authHeader); toast.success('Deleted'); fetchData(); } 
+      try { await axios.delete(`${API_BASE_URL}/api/categories/${categoryId}`, authHeader);
+     toast.success('Deleted'); fetchData(); } 
       catch (error) { toast.error('Error deleting'); }
     }
   };
@@ -191,7 +197,8 @@ const AddComponents = ({ token, categories, fetchData }) => {
     }
 
     try {
-      await axios.post('http://localhost:5000/api/products', { 
+      await axios.post(`${API_BASE_URL}/api/products`, {
+
           name: productName, 
           price: Number(price), 
           description, 
@@ -351,7 +358,8 @@ const InventoryView = ({ token, products, categories, fetchData }) => {
   const handleDeleteProduct = async (productId) => {
     const result = await Swal.fire({ title: 'Delete Product?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#1a1a1a', cancelButtonColor: '#dc2626', confirmButtonText: 'Yes, delete it!' });
     if (result.isConfirmed) {
-      try { await axios.delete(`http://localhost:5000/api/products/${productId}`, authHeader); toast.success('Deleted'); fetchData(); } 
+      try { await axios.delete(`${API_BASE_URL}/api/products/${productId}`, authHeader);
+ toast.success('Deleted'); fetchData(); } 
       catch (error) { toast.error('Error deleting'); }
     }
   };
@@ -383,7 +391,8 @@ const InventoryView = ({ token, products, categories, fetchData }) => {
         // we might want to ensure 'hasVariations' is set to true in the backend too, just in case.
         // But the current PUT /stock endpoint handles variants/countInStock updates fine.
 
-        await axios.put(`http://localhost:5000/api/products/${product._id}/stock`, payload, authHeader);
+        await axios.put(`${API_BASE_URL}/api/products/${product._id}/stock`, payload, authHeader);
+
         toast.success("Stock Updated");
         setEditingProductId(null);
         fetchData(); 
@@ -504,9 +513,11 @@ const AdminPage = () => {
 
   const fetchData = async () => {
     try {
-      const catRes = await axios.get('http://localhost:5000/api/categories');
+      const catRes = await axios.get(`${API_BASE_URL}/api/categories`);
+
       setCategories(catRes.data);
-      const prodRes = await axios.get('http://localhost:5000/api/products');
+      const prodRes = await axios.get(`${API_BASE_URL}/api/products`);
+
       setProducts(prodRes.data);
     } catch (error) {
       toast.error("Failed to load data");
