@@ -4,6 +4,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar
 } from 'recharts';
+import API_BASE_URL from "../api";
 
 const DashboardAnalytics = () => {
   const [stats, setStats] = useState(null);
