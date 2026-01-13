@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import toast from 'react-hot-toast';
 
 const CouponManager = () => {
@@ -14,7 +15,7 @@ const CouponManager = () => {
   // 1. Fetch Coupons
   const fetchCoupons = async () => {
     try {
-      const { data } = await axios.get('http://localhost:5000/api/coupons');
+      const { data } = await axios.get(`${API_BASE_URL}/api/coupons`);
       setCoupons(data);
       setLoading(false);
     } catch (error) {
@@ -32,7 +33,7 @@ const CouponManager = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/coupons', {
+      await axios.post(`${API_BASE_URL}/api/coupons`, {
         code,
         discountPercentage: Number(discount),
         expirationDate: expiry
@@ -49,7 +50,7 @@ const CouponManager = () => {
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this coupon?")) return;
     try {
-      await axios.delete(`http://localhost:5000/api/coupons/${id}`);
+      await axios.delete(`${API_BASE_URL}/api/coupons/${id}`);
       toast.success('Coupon Deleted');
       fetchCoupons();
     } catch (error) {

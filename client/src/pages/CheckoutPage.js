@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -60,7 +61,7 @@ const CheckoutForm = () => {
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('token');
-        const { data } = await axios.get('http://localhost:5000/api/users/profile', {
+        const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setProfileData(data);
@@ -84,7 +85,7 @@ const CheckoutForm = () => {
       size: item?.size || null // Fix: backend expects 'size' not 'selectedSize'
     }));
 
-    const { data } = await axios.post('http://localhost:5000/api/orders', {
+    const { data } = await axios.post(`${API_BASE_URL}/api/orders`, {
       orderItems,
       shippingAddress: defaultAddress,
       paymentMethod,
@@ -112,7 +113,7 @@ const CheckoutForm = () => {
         if (!stripe || !elements) return;
 
         const { data: { clientSecret } } = await axios.post(
-          'http://localhost:5000/api/payment/create-payment-intent',
+          `${API_BASE_URL}/api/payment/create-payment-intent`,
           { amount: Math.round(finalTotal * 100) }
         );
 

@@ -1,5 +1,6 @@
 import React, { useState, useContext } from 'react';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -14,7 +15,7 @@ const RegisterPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await axios.post('http://localhost:5000/api/auth/register', formData);
+      const { data } = await axios.post(`${API_BASE_URL}/api/auth/register`, formData);
       if (data.token) {
         login(data.token);
         toast.success('Welcome to NOIR');

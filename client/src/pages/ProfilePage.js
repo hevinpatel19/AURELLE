@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 
@@ -30,7 +31,7 @@ const ProfilePage = () => {
       if (!token) { navigate('/login'); return; }
       const config = { headers: { Authorization: `Bearer ${token}` } };
 
-      const { data } = await axios.get('http://localhost:5000/api/users/profile', config);
+      const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, config);
       setUserProfile({ name: data.name || '', email: data.email || '', phone: data.phone || '' });
       setAddresses(data.addresses || []);
     } catch (error) {
@@ -48,7 +49,7 @@ const ProfilePage = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      await axios.put('http://localhost:5000/api/users/profile',
+      await axios.put(`${API_BASE_URL}/api/users/profile`,
         { name: userProfile.name, phone: userProfile.phone },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -65,7 +66,7 @@ const ProfilePage = () => {
     }
     try {
       const token = localStorage.getItem('token');
-      const { data } = await axios.post('http://localhost:5000/api/users/address', newAddress,
+      const { data } = await axios.post(`${API_BASE_URL}/api/users/address`, newAddress,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setAddresses(data);
@@ -83,7 +84,7 @@ const ProfilePage = () => {
   const handleSetDefaultAddress = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      const { data } = await axios.put(`http://localhost:5000/api/users/address/${id}/default`, {},
+      const { data } = await axios.put(`${API_BASE_URL}/api/users/address/${id}/default`, {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setAddresses(data);
@@ -108,7 +109,7 @@ const ProfilePage = () => {
     if (result.isConfirmed) {
       try {
         const token = localStorage.getItem('token');
-        const { data } = await axios.delete(`http://localhost:5000/api/users/address/${id}`,
+        const { data } = await axios.delete(`${API_BASE_URL}/api/users/address/${id}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         setAddresses(data);

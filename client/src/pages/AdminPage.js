@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 import Swal from 'sweetalert2';
@@ -639,7 +640,7 @@ const OrderManagement = ({ token }) => {
 
   const fetchOrders = async () => {
     try {
-      const { data } = await axios.get('http://localhost:5000/api/orders', {
+      const { data } = await axios.get(`${API_BASE_URL}/api/orders`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setOrders(data);
@@ -652,7 +653,7 @@ const OrderManagement = ({ token }) => {
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      const { data } = await axios.put(`http://localhost:5000/api/orders/${id}/status`,
+      const { data } = await axios.put(`${API_BASE_URL}/api/orders/${id}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -768,7 +769,7 @@ const AddComponents = ({ token, categories, fetchData }) => {
   const handleCreateCategory = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/categories', { name: newCategoryName }, authHeader);
+      await axios.post(`${API_BASE_URL}/api/categories`, { name: newCategoryName }, authHeader);
       toast.success('Category created');
       setNewCategoryName('');
       fetchData();
@@ -791,7 +792,7 @@ const AddComponents = ({ token, categories, fetchData }) => {
     });
     if (result.isConfirmed) {
       try {
-        await axios.delete(`http://localhost:5000/api/categories/${categoryId}`, authHeader);
+        await axios.delete(`${API_BASE_URL}/api/categories/${categoryId}`, authHeader);
         toast.success('Deleted');
         fetchData();
       } catch (error) {
@@ -813,7 +814,7 @@ const AddComponents = ({ token, categories, fetchData }) => {
     }
 
     try {
-      await axios.post('http://localhost:5000/api/products', {
+      await axios.post(`${API_BASE_URL}/api/products`, {
         name: productName,
         price: Number(price),
         description,
@@ -995,7 +996,7 @@ const InventoryView = ({ token, products, categories, fetchData }) => {
     });
     if (result.isConfirmed) {
       try {
-        await axios.delete(`http://localhost:5000/api/products/${productId}`, authHeader);
+        await axios.delete(`${API_BASE_URL}/api/products/${productId}`, authHeader);
         toast.success('Deleted');
         fetchData();
       } catch (error) {
@@ -1020,7 +1021,7 @@ const InventoryView = ({ token, products, categories, fetchData }) => {
       const payload = product.hasVariations
         ? { variants: editVariants }
         : { countInStock: editSimpleStock };
-      await axios.put(`http://localhost:5000/api/products/${product._id}/stock`, payload, authHeader);
+      await axios.put(`${API_BASE_URL}/api/products/${product._id}/stock`, payload, authHeader);
       toast.success('Stock updated');
       setEditingProductId(null);
       fetchData();
@@ -1143,8 +1144,8 @@ const AdminPage = () => {
   const fetchData = async () => {
     try {
       const [catRes, prodRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/categories'),
-        axios.get('http://localhost:5000/api/products')
+        axios.get(`${API_BASE_URL}/api/categories`),
+        axios.get(`${API_BASE_URL}/api/products`)
       ]);
       setCategories(catRes.data);
       setProducts(prodRes.data);

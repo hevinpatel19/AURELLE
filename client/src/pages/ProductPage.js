@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import toast from 'react-hot-toast';
 
 const ProductPage = () => {
@@ -37,7 +38,7 @@ const ProductPage = () => {
       if (!id) return;
 
       try {
-        const { data } = await axios.get(`http://localhost:5000/api/products/${id}`);
+        const { data } = await axios.get(`${API_BASE_URL}/api/products/${id}`);
         // Ensure we actually got the *correct* product (paranoia check)
         if (data._id === id) {
           setProduct(data);
@@ -55,7 +56,7 @@ const ProductPage = () => {
               // Use the optimized endpoint if available, or fallback to filter
               // Ideally backend has /api/products/:id/related. 
               // Let's rely on client-side filter for safety as verified in prev steps
-              const { data: allProducts } = await axios.get('http://localhost:5000/api/products');
+              const { data: allProducts } = await axios.get(`${API_BASE_URL}/api/products`);
               const filtered = allProducts
                 .filter(p => p.category?._id === data.category._id && p._id !== data._id)
                 .slice(0, 3);
@@ -80,7 +81,7 @@ const ProductPage = () => {
     if (user && product) {
       const checkWishlist = async () => {
         try {
-          const { data } = await axios.get('http://localhost:5000/api/users/profile', {
+          const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, {
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
           });
 
@@ -107,13 +108,13 @@ const ProductPage = () => {
     try {
       const token = localStorage.getItem('token');
       if (isWishlisted) {
-        await axios.delete(`http://localhost:5000/api/users/wishlist/${product._id}`, {
+        await axios.delete(`${API_BASE_URL}/api/users/wishlist/${product._id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success('Removed from wishlist');
         setIsWishlisted(false);
       } else {
-        await axios.post('http://localhost:5000/api/users/wishlist', {
+        await axios.post(`${API_BASE_URL}/api/users/wishlist`, {
           productId: product._id
         }, {
           headers: { Authorization: `Bearer ${token}` }
@@ -147,7 +148,7 @@ const ProductPage = () => {
     e.preventDefault();
     if (!user) return toast.error('Please login first');
     try {
-      await axios.post(`http://localhost:5000/api/products/${id}/reviews`,
+      await axios.post(`${API_BASE_URL}/api/products/${id}/reviews`,
         { rating, comment },
         { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
       );
@@ -156,7 +157,7 @@ const ProductPage = () => {
       setRating(5);
 
       // Refresh product data to show new review
-      const { data } = await axios.get(`http://localhost:5000/api/products/${id}`);
+      const { data } = await axios.get(`${API_BASE_URL}/api/products/${id}`);
       setProduct(data);
       setReviews(data.reviews || []);
     } catch (error) {

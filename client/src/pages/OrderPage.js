@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -16,7 +17,7 @@ const OrderPage = () => {
 
   const fetchOrders = async () => {
     try {
-      const { data } = await axios.get('http://localhost:5000/api/orders/myorders', {
+      const { data } = await axios.get(`${API_BASE_URL}/api/orders/myorders`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setOrders(data);
@@ -52,7 +53,7 @@ const OrderPage = () => {
 
     if (result.isConfirmed) {
       try {
-        await axios.put(`http://localhost:5000/api/orders/${orderId}/cancel`, {}, {
+        await axios.put(`${API_BASE_URL}/api/orders/${orderId}/cancel`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         toast.success("Order cancelled");
@@ -302,7 +303,7 @@ const ReturnModal = ({ orderId, token, onClose, onSuccess }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.put(`http://localhost:5000/api/orders/${orderId}/return`,
+      await axios.put(`${API_BASE_URL}/api/orders/${orderId}/return`,
         { reason, condition, comment },
         { headers: { Authorization: `Bearer ${token}` } }
       );

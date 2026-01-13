@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 
 const CategoryPage = () => {
   const { categoryId } = useParams();
@@ -13,8 +14,8 @@ const CategoryPage = () => {
       setLoading(true);
       try {
         const [productsRes, categoryRes] = await Promise.all([
-          axios.get(`http://localhost:5000/api/products/category/${categoryId}`),
-          axios.get(`http://localhost:5000/api/categories`)
+          axios.get(`${API_BASE_URL}/api/products/category/${categoryId}`),
+          axios.get(`${API_BASE_URL}/api/categories`)
         ]);
 
         setProducts(productsRes.data);

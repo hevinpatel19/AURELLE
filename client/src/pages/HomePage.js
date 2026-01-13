@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 
 const HomePage = () => {
   const [products, setProducts] = useState([]);
@@ -10,8 +11,8 @@ const HomePage = () => {
     const fetchData = async () => {
       try {
         const [prodRes, catRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/products'),
-          axios.get('http://localhost:5000/api/categories')
+          axios.get(`${API_BASE_URL}/api/products`),
+          axios.get(`${API_BASE_URL}/api/categories`)
         ]);
         setProducts(prodRes.data);
         setCategories(catRes.data);

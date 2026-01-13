@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
+import API_BASE_URL from '../api';
 import './Navbar.css';
 
 const Navbar = () => {
@@ -38,8 +39,8 @@ const Navbar = () => {
     const fetchData = async () => {
       try {
         const [catRes, prodRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/categories'),
-          axios.get('http://localhost:5000/api/products')
+          axios.get(`${API_BASE_URL}/api/categories`),
+          axios.get(`${API_BASE_URL}/api/products`)
         ]);
         setCategories(catRes.data);
         setAllProducts(prodRes.data);
