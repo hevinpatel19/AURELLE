@@ -12,6 +12,8 @@ const getUserProfile = async (req, res) => {
       role: user.role,
       // Return the array of addresses
       addresses: user.addresses || [],
+      // Return wishlist (Fix for frontend)
+      wishlist: user.wishlist || [],
       // Backward compatibility logic (Optional)
       address: user.addresses.find(a => a.isDefault)?.address || user.addresses[0]?.address || "",
       city: user.addresses.find(a => a.isDefault)?.city || user.addresses[0]?.city || "",
@@ -31,9 +33,9 @@ const updateUserProfile = async (req, res) => {
   if (user) {
     user.name = req.body.name || user.name;
     if (req.body.password) {
-      user.password = req.body.password; 
+      user.password = req.body.password;
     }
-    
+
     const updatedUser = await user.save();
 
     res.json({
@@ -42,6 +44,7 @@ const updateUserProfile = async (req, res) => {
       email: updatedUser.email,
       role: updatedUser.role,
       addresses: updatedUser.addresses,
+      wishlist: updatedUser.wishlist, // consistent return
       token: req.headers.authorization ? req.headers.authorization.split(' ')[1] : null,
     });
   } else {
@@ -173,13 +176,13 @@ const setAddressAsDefault = async (req, res) => {
   }
 };
 
-module.exports = { 
-  getUserProfile, 
+module.exports = {
+  getUserProfile,
   updateUserProfile,
   addAddress,      // NEW
   deleteAddress,   // NEW
-  getWishlist, 
-  addToWishlist, 
+  getWishlist,
+  addToWishlist,
   removeFromWishlist,
-  setAddressAsDefault 
+  setAddressAsDefault
 };

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import API_BASE_URL from "../api";
 
 const CouponManager = () => {
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Form State
   const [code, setCode] = useState('');
   const [discount, setDiscount] = useState('');
@@ -15,8 +14,7 @@ const CouponManager = () => {
   // 1. Fetch Coupons
   const fetchCoupons = async () => {
     try {
-      const { data } = await axios.get(`${API_BASE_URL}/api/coupons`);
-
+      const { data } = await axios.get('http://localhost:5000/api/coupons');
       setCoupons(data);
       setLoading(false);
     } catch (error) {
@@ -34,15 +32,14 @@ const CouponManager = () => {
   const handleCreate = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${API_BASE_URL}/api/coupons`, {
-
+      await axios.post('http://localhost:5000/api/coupons', {
         code,
         discountPercentage: Number(discount),
         expirationDate: expiry
       });
       toast.success('Coupon Created Successfully!');
       setCode(''); setDiscount(''); setExpiry('');
-      fetchCoupons(); 
+      fetchCoupons();
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to create coupon');
     }
@@ -50,10 +47,9 @@ const CouponManager = () => {
 
   // 3. Delete Coupon
   const handleDelete = async (id) => {
-    if(!window.confirm("Delete this coupon?")) return;
+    if (!window.confirm("Delete this coupon?")) return;
     try {
-      await axios.delete(`${API_BASE_URL}/api/coupons/${id}`);
-
+      await axios.delete(`http://localhost:5000/api/coupons/${id}`);
       toast.success('Coupon Deleted');
       fetchCoupons();
     } catch (error) {
@@ -65,25 +61,27 @@ const CouponManager = () => {
     <div className="fade-in">
       <style>{`
         .coupon-section-title {
-            font-size: 1.5rem;
-            font-weight: 800;
+            font-size: 1.25rem;
+            font-weight: 600;
             margin-bottom: 1.5rem;
             text-transform: uppercase;
-            color: #1a1a1a;
+            letter-spacing: 0.08em;
+            color: var(--ivory);
         }
         
         /* Form Styling */
         .coupon-form-container {
-            background: #f8f9fa;
+            background: var(--charcoal);
             padding: 2rem;
-            border-radius: 8px;
-            border: 1px solid #eee;
+            border-radius: 4px;
+            border: var(--border-subtle);
             margin-bottom: 3rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
         }
         .form-row {
             display: flex;
             gap: 1.5rem;
-            align-items: flex-end; /* Aligns button with inputs */
+            align-items: flex-end;
             flex-wrap: wrap;
         }
         .input-group {
@@ -92,28 +90,31 @@ const CouponManager = () => {
         }
         .input-label {
             display: block;
-            font-size: 0.75rem;
-            font-weight: 800;
+            font-size: 0.6rem;
+            font-weight: 600;
             text-transform: uppercase;
-            color: #666;
+            letter-spacing: 0.12em;
+            color: var(--fog);
             margin-bottom: 0.5rem;
         }
         .styled-input {
             width: 100%;
-            height: 45px; /* Enforce height to match button */
-            padding: 0 12px; /* Adjusted padding for height alignment */
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 0.95rem;
+            height: 45px;
+            padding: 0 12px;
+            border: var(--border-light);
+            background: var(--slate);
+            color: var(--ivory);
+            border-radius: 0;
+            font-size: 0.9rem;
             transition: all 0.2s;
             outline: none;
-            background: #fff;
-            color: #333;
-            font-family: inherit;
+            font-family: var(--font-body);
         }
         .styled-input:focus {
-            border-color: #1a1a1a;
-            box-shadow: 0 0 0 2px rgba(0,0,0,0.05);
+            border-color: var(--gold);
+        }
+        .styled-input::placeholder {
+            color: var(--stone);
         }
 
         /* --- FIX: Date Input Specific Styling --- */
@@ -122,106 +123,116 @@ const CouponManager = () => {
             -webkit-appearance: none;
             display: flex;
             align-items: center;
-            color: #555;
+            color: var(--mist);
             cursor: pointer;
         }
-        /* Style the Calendar Icon */
         input[type="date"]::-webkit-calendar-picker-indicator {
             cursor: pointer;
             opacity: 0.5;
             transition: 0.2s;
             padding: 5px;
-            margin-left: auto; /* Pushes icon to right */
-            filter: invert(0); /* Ensures icon is dark */
+            margin-left: auto;
+            filter: invert(1);
         }
         input[type="date"]::-webkit-calendar-picker-indicator:hover {
             opacity: 1;
             transform: scale(1.1);
         }
-        /* ---------------------------------------- */
-
+        
         .create-btn {
-            background: #1a1a1a;
-            color: white;
+            background: var(--gold);
+            color: var(--abyss);
             border: none;
             padding: 0 30px;
-            border-radius: 6px;
-            font-weight: 700;
+            border-radius: 0;
+            font-weight: 600;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
             cursor: pointer;
-            height: 45px; /* Matches input height exactly */
-            transition: background 0.3s;
+            height: 45px;
+            transition: all 0.3s;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 0.75rem;
         }
         .create-btn:hover {
-            background: #333;
+            background: var(--ivory);
+            transform: translateY(-2px);
         }
 
         /* Table Styling */
         .table-wrapper {
-            background: white;
-            border: 1px solid #eee;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+            background: var(--charcoal);
+            border: var(--border-subtle);
+            border-radius: 4px;
             overflow-x: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
         }
         table { width: 100%; border-collapse: collapse; min-width: 600px; }
         th { 
-            background: #f8f9fa; 
-            padding: 16px; 
+            background: var(--slate); 
+            padding: 1rem; 
             text-align: left; 
-            font-size: 0.85rem; 
-            color: #666; 
-            border-bottom: 2px solid #eee; 
+            font-size: 0.65rem; 
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--gold); 
+            border-bottom: var(--border-light); 
             text-transform: uppercase; 
             white-space: nowrap; 
         }
         td { 
-            padding: 16px; 
-            border-bottom: 1px solid #eee; 
+            padding: 1rem; 
+            border-bottom: var(--border-subtle); 
             vertical-align: middle; 
-            font-size: 1rem; 
-            color: #1a1a1a; 
+            font-size: 0.9rem; 
+            color: var(--mist); 
+        }
+        tr:hover td {
+            background: var(--gold-glow);
+            color: var(--ivory);
         }
         .code-pill {
-            background: #ecfdf5;
-            color: #047857;
-            padding: 6px 12px;
-            border-radius: 20px;
+            background: rgba(184, 151, 106, 0.1);
+            color: var(--gold);
+            padding: 4px 10px;
+            border: 1px solid rgba(184, 151, 106, 0.3);
             font-family: monospace;
-            font-weight: 700;
-            border: 1px solid #a7f3d0;
+            font-weight: 500;
+            font-size: 0.85rem;
+            letter-spacing: 0.05em;
         }
         .delete-btn {
-            background: #fee2e2;
-            color: #b91c1c;
+            background: var(--wine);
+            color: var(--ivory);
             border: none;
-            padding: 6px 14px;
-            border-radius: 4px;
-            font-weight: 700;
-            font-size: 0.8rem;
+            padding: 6px 12px;
+            border-radius: 0;
+            font-weight: 600;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
             cursor: pointer;
             transition: all 0.2s;
         }
         .delete-btn:hover {
-            background: #fecaca;
+            background: var(--burgundy);
         }
       `}</style>
 
       {/* --- 1. CREATE SECTION --- */}
       <h2 className="coupon-section-title">Manage Coupons</h2>
-      
+
       <div className="coupon-form-container">
         <form onSubmit={handleCreate} className="form-row">
           {/* Code Input */}
           <div className="input-group">
             <label className="input-label">Code Name</label>
-            <input 
-              type="text" 
-              placeholder="e.g. SUMMER20" 
-              value={code} 
+            <input
+              type="text"
+              placeholder="e.g. SUMMER20"
+              value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               required
               className="styled-input"
@@ -229,15 +240,15 @@ const CouponManager = () => {
           </div>
 
           {/* Discount Input */}
-          <div className="input-group" style={{ flex: '0 0 150px' }}> {/* Fixed narrower width */}
+          <div className="input-group" style={{ flex: '0 0 150px' }}>
             <label className="input-label">Discount (%)</label>
-            <input 
-              type="number" 
-              placeholder="20" 
-              value={discount} 
+            <input
+              type="number"
+              placeholder="20"
+              value={discount}
               onChange={(e) => setDiscount(e.target.value)}
-              required 
-              min="1" 
+              required
+              min="1"
               max="100"
               className="styled-input"
             />
@@ -246,9 +257,9 @@ const CouponManager = () => {
           {/* Date Input */}
           <div className="input-group">
             <label className="input-label">Expiry Date</label>
-            <input 
-              type="date" 
-              value={expiry} 
+            <input
+              type="date"
+              value={expiry}
               onChange={(e) => setExpiry(e.target.value)}
               required
               className="styled-input"
@@ -262,8 +273,8 @@ const CouponManager = () => {
       </div>
 
       {/* --- 2. LIST SECTION --- */}
-      <h3 className="coupon-section-title" style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Active Coupons</h3>
-      
+      <h3 className="coupon-section-title" style={{ fontSize: '1rem', marginTop: '2rem' }}>Active Coupons</h3>
+
       <div className="table-wrapper">
         <table>
           <thead>
@@ -278,16 +289,16 @@ const CouponManager = () => {
             {coupons.map((coupon) => (
               <tr key={coupon._id}>
                 <td>
-                    <span className="code-pill">{coupon.code}</span>
+                  <span className="code-pill">{coupon.code}</span>
                 </td>
-                <td style={{ fontWeight: '600' }}>{coupon.discountPercentage}% OFF</td>
-                <td style={{ color: '#666' }}>
-                    {new Date(coupon.expirationDate).toLocaleDateString(undefined, { 
-                        weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' 
-                    })}
+                <td style={{ fontWeight: '500', color: 'var(--ivory)' }}>{coupon.discountPercentage}% OFF</td>
+                <td style={{ color: 'var(--stone)' }}>
+                  {new Date(coupon.expirationDate).toLocaleDateString(undefined, {
+                    year: 'numeric', month: 'short', day: 'numeric'
+                  })}
                 </td>
                 <td style={{ textAlign: 'right' }}>
-                  <button 
+                  <button
                     onClick={() => handleDelete(coupon._id)}
                     className="delete-btn"
                   >
@@ -296,11 +307,11 @@ const CouponManager = () => {
                 </td>
               </tr>
             ))}
-            
+
             {coupons.length === 0 && !loading && (
               <tr>
-                <td colSpan="4" style={{ padding: '3rem', textAlign: 'center', color: '#999', fontStyle: 'italic' }}>
-                  No active coupons found. Create one above to get started!
+                <td colSpan="4" style={{ padding: '3rem', textAlign: 'center', color: 'var(--stone)', fontStyle: 'italic' }}>
+                  No active coupons found. Create one above to get started.
                 </td>
               </tr>
             )}

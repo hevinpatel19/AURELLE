@@ -3,311 +3,354 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom'; 
+import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import API_BASE_URL from "../api";
 
-
-// Replace with your actual Publishable Key
-const stripePromise = loadStripe('pk_test_51STyR8IkuLiRZrCBt3MgxdMfWISebWu7LDSTUYarsLWYdkGZ4eluBnbUB7UP8BG8hYaVinhDDcJ7nGUhTsScaaZq00rw102IfK'); 
+const stripePromise = loadStripe('pk_test_51STyR8IkuLiRZrCBt3MgxdMfWISebWu7LDSTUYarsLWYdkGZ4eluBnbUB7UP8BG8hYaVinhDDcJ7nGUhTsScaaZq00rw102IfK');
 
 const CheckoutForm = () => {
   const stripe = useStripe();
   const elements = useElements();
-  const { cart, user, clearCart } = useAuth(); 
+  const { cart, user, clearCart } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation(); 
-  
+  const location = useLocation();
+
   const [loading, setLoading] = useState(false);
   const [profileData, setProfileData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('card'); 
+  const [paymentMethod, setPaymentMethod] = useState('card');
 
-  // --- GET DISCOUNT DATA FROM CART PAGE ---
-  const { discountPercent = 0, couponCode = null } = location.state || {};
-
-  // --- UPI STATES ---
+  // UPI
   const [upiId, setUpiId] = useState('');
-  const [isUpiVerified, setIsUpiVerified] = useState(false);
-  const [verifyingUpi, setVerifyingUpi] = useState(false);
+  const [upiVerified, setUpiVerified] = useState(false);
+
+  // Coupon from CartPage
+  const appliedCoupon = location.state?.appliedCoupon || null;
+  const discountedTotal = location.state?.discountedTotal || null;
+
+  // Safe cart array
+  const cartItems = Array.isArray(cart) ? cart : [];
+
+  // Safe price getter - reads from item.product (populated from API)
+  const getItemPrice = (item) => {
+    if (!item?.product) return 0;
+    const price = item.product.price ?? 0;
+    return typeof price === 'number' ? price : 0;
+  };
+
+  // Calculate subtotal safely
+  const calculateSubtotal = () => {
+    return cartItems.reduce((acc, item) => {
+      const price = getItemPrice(item);
+      const quantity = item?.quantity ?? 0;
+      return acc + (price * quantity);
+    }, 0);
+  };
+
+  const subtotal = calculateSubtotal();
+
+  // Ensure finalTotal is always a valid number
+  const finalTotal = (() => {
+    if (discountedTotal !== null && typeof discountedTotal === 'number' && !isNaN(discountedTotal)) {
+      return discountedTotal;
+    }
+    return subtotal;
+  })();
 
   useEffect(() => {
-    const fetchLatestProfile = async () => {
+    const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('token');
-        if (token) {
-           const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, {
-
-              headers: { Authorization: `Bearer ${token}` }
-           });
-           setProfileData(data);
-        }
+        const { data } = await axios.get('http://localhost:5000/api/users/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setProfileData(data);
       } catch (error) {
-        console.error("Could not fetch profile address", error);
+        console.error(error);
       }
     };
-    fetchLatestProfile();
+    fetchProfile();
   }, []);
 
-  // --- UPDATED CALCULATION LOGIC ---
-  const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0);
-  const discountAmount = (subtotal * discountPercent) / 100;
-  const finalTotal = Math.round(subtotal - discountAmount); 
+  const defaultAddress = profileData?.addresses?.find(addr => addr.isDefault) || profileData?.addresses?.[0];
 
-  // --- VERIFY UPI MOCK ---
-  const handleVerifyUpi = () => {
-    if (!upiId.includes('@')) {
-        toast.error("Invalid UPI ID format (must contain '@')");
-        return;
-    }
-    setVerifyingUpi(true);
-    setTimeout(() => {
-        setVerifyingUpi(false);
-        setIsUpiVerified(true);
-        toast.success("UPI ID Verified Successfully!");
-    }, 1500);
+  const createOrder = async (paymentResult, isPaid) => {
+    const token = localStorage.getItem('token');
+    const orderItems = cartItems.map(item => ({
+      name: item?.product?.name || 'Product',
+      qty: item?.quantity || 1,
+      price: getItemPrice(item),
+      image: item?.product?.imageUrl || '',
+      product: item?.product?._id,
+      size: item?.size || null // Fix: backend expects 'size' not 'selectedSize'
+    }));
+
+    const { data } = await axios.post('http://localhost:5000/api/orders', {
+      orderItems,
+      shippingAddress: defaultAddress,
+      paymentMethod,
+      totalPrice: finalTotal,
+      isPaid,
+      paymentResult,
+      couponCode: appliedCoupon?.code || null
+    }, { headers: { Authorization: `Bearer ${token}` } });
+
+    return data;
   };
 
-  // --- PLACE ORDER LOGIC (FIXED) ---
-  const placeOrder = async (methodType, isPaidStatus) => {
-      try {
-          const token = localStorage.getItem('token');
-          const shippingSource = profileData || user || {};
-
-          const orderData = {
-            orderItems: cart.map(item => ({
-              name: item.product.name,
-              qty: item.quantity,
-              image: item.product.imageUrl,
-              price: item.product.price,
-              product: item.product._id,
-              size: item.size // <--- CRITICAL FIX: INCLUDE SIZE HERE
-            })),
-            shippingAddress: {
-              address: shippingSource.address || "No Address Provided", 
-              city: shippingSource.city || "No City",
-              postalCode: shippingSource.postalCode || "000000",
-              country: shippingSource.country || "India"
-            },
-            paymentMethod: methodType,
-            totalPrice: finalTotal, 
-            isPaid: isPaidStatus 
-          };
-
-          await axios.post(`${API_BASE_URL}/api/orders`, orderData, {
-
-            headers: { Authorization: `Bearer ${token}` }
-          });
-
-          toast.success("Order Placed Successfully!");
-          if (clearCart) clearCart();
-          setTimeout(() => navigate('/orders'), 2000);
-
-      } catch (error) {
-          console.error("Order Save Error:", error);
-          toast.error("Failed to save order.");
-      }
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setLoading(true);
 
-    if (paymentMethod === 'card') {
-        if (!stripe || !elements) return;
-        try {
-            const { data: { clientSecret } } = await axios.post(`${API_BASE_URL}/api/payment/create-payment-intent`,
+    if (!defaultAddress) {
+      toast.error('Please add a shipping address in your profile');
+      setLoading(false);
+      return navigate('/profile', { state: { fromCart: true } });
+    }
 
-                { amount: finalTotal * 100 } 
-            );
-            const result = await stripe.confirmCardPayment(clientSecret, {
-                payment_method: {
-                    card: elements.getElement(CardElement),
-                    billing_details: { name: user?.name || 'Customer' },
-                },
-            });
-            if (result.error) {
-                toast.error(result.error.message);
-            } else if (result.paymentIntent.status === 'succeeded') {
-                await placeOrder("Card", true);
-            }
-        } catch (error) {
-            toast.error("Card Payment Failed");
+    try {
+      if (paymentMethod === 'card') {
+        if (!stripe || !elements) return;
+
+        const { data: { clientSecret } } = await axios.post(
+          'http://localhost:5000/api/payment/create-payment-intent',
+          { amount: Math.round(finalTotal * 100) }
+        );
+
+        const result = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: {
+            card: elements.getElement(CardElement),
+            billing_details: { name: user?.name || 'Customer' }
+          }
+        });
+
+        if (result.error) {
+          toast.error(result.error.message);
+        } else if (result.paymentIntent.status === 'succeeded') {
+          await createOrder({ id: result.paymentIntent.id, status: 'succeeded' }, true);
+          clearCart();
+          toast.success('Order placed successfully');
+          navigate('/orders');
         }
-    } 
-    else if (paymentMethod === 'cod') {
-        await placeOrder("COD", false);
-    }
-    else if (paymentMethod === 'upi') {
-        if (isUpiVerified) {
-            await placeOrder("UPI", true);
-        } else {
-            toast.error("Please verify your UPI ID first");
+      } else if (paymentMethod === 'upi') {
+        if (!upiVerified) {
+          toast.error('Please verify your UPI ID first');
+          setLoading(false);
+          return;
         }
+        await createOrder({ id: `UPI-${Date.now()}`, status: 'pending_verification' }, false);
+        clearCart();
+        toast.success('Order placed! UPI payment pending.');
+        navigate('/orders');
+      } else {
+        // COD
+        await createOrder({ id: `COD-${Date.now()}`, status: 'cod' }, false);
+        clearCart();
+        toast.success('Order placed! Pay on delivery.');
+        navigate('/orders');
+      }
+    } catch (error) {
+      toast.error('Order failed. Please try again.');
     }
+
     setLoading(false);
   };
 
-  // --- STYLES ---
-  const optionStyle = (isActive) => ({
-    border: `1px solid ${isActive ? '#1a1a1a' : '#eee'}`,
-    background: isActive ? '#fafafa' : 'white',
-    borderRadius: '8px',
-    padding: '1rem',
-    marginBottom: '1rem',
-    cursor: 'pointer',
-    transition: 'all 0.2s ease',
-    display: 'flex',
-    flexDirection: 'column'
-  });
+  const cardStyle = {
+    base: {
+      fontSize: '16px',
+      color: '#E8E8E8',
+      fontFamily: 'Archivo, sans-serif',
+      '::placeholder': { color: '#555555' }
+    },
+    invalid: { color: '#722F37' }
+  };
 
-  const radioHeaderStyle = { display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1rem', fontWeight: '600' };
-  
+  // Format total safely
+  const formatTotal = (value) => {
+    const num = typeof value === 'number' && !isNaN(value) ? value : 0;
+    return num.toLocaleString('en-IN');
+  };
+
   return (
-    <form onSubmit={handleSubmit}>
-      
-      <div style={{ marginBottom: '2rem', padding: '15px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
-          <h4 style={{fontSize: '0.85rem', fontWeight: '700', marginBottom: '5px', color: '#555', textTransform:'uppercase'}}>Shipping To:</h4>
-          {profileData ? (
-             <p style={{fontSize: '0.95rem', margin: 0, color: '#333'}}>
-                {profileData.address || "No address set"}<br/>
-                {profileData.city || "No city"} - {profileData.postalCode || "000000"}
-             </p>
-          ) : (
-             <p style={{fontSize: '0.8rem', color: '#888'}}>Loading address...</p>
-          )}
-      </div>
-
-      <h3 style={{fontSize: '1.1rem', fontWeight:'800', marginBottom:'1rem', textTransform:'uppercase'}}>Select Payment Method</h3>
-
-      {/* --- OPTION 1: CARD --- */}
-      <div style={optionStyle(paymentMethod === 'card')} onClick={() => setPaymentMethod('card')}>
-         <div style={radioHeaderStyle}>
-            <input type="radio" checked={paymentMethod === 'card'} readOnly />
-            Credit / Debit Card
-         </div>
-         {paymentMethod === 'card' && (
-            <div style={{ marginTop: '1rem', paddingLeft: '1.8rem', animation: 'fadeIn 0.3s' }}>
-                <div className="stripe-box" style={{ padding: '10px', background: 'white', border: '1px solid #ddd', borderRadius: '4px' }}>
-                    <CardElement options={{
-                        style: {
-                            base: { fontSize: '16px', color: '#0f172a', fontFamily: '"Manrope", sans-serif', '::placeholder': { color: '#aab7c4' } },
-                            invalid: { color: '#ef4444' },
-                        },
-                    }} />
-                </div>
-            </div>
-         )}
-      </div>
-
-      {/* --- OPTION 2: UPI --- */}
-      <div style={optionStyle(paymentMethod === 'upi')} onClick={() => setPaymentMethod('upi')}>
-         <div style={radioHeaderStyle}>
-            <input type="radio" checked={paymentMethod === 'upi'} readOnly />
-            UPI / NetBanking
-         </div>
-         {paymentMethod === 'upi' && (
-            <div style={{ marginTop: '1rem', paddingLeft: '1.8rem', animation: 'fadeIn 0.3s' }}>
-               <p style={{ fontSize: '0.9rem', color: '#666', marginBottom:'0.5rem' }}>Enter your Virtual Payment Address (VPA):</p>
-               <div style={{ display: 'flex', gap: '10px' }}>
-                   <input 
-                      type="text" 
-                      placeholder="e.g. user@oksbi" 
-                      value={upiId}
-                      onChange={(e) => {
-                          setUpiId(e.target.value);
-                          setIsUpiVerified(false);
-                      }}
-                      style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #ddd', outline: 'none' }}
-                   />
-                   <button 
-                      type="button" 
-                      onClick={handleVerifyUpi}
-                      disabled={verifyingUpi || isUpiVerified}
-                      style={{ 
-                          background: isUpiVerified ? '#166534' : '#1a1a1a', 
-                          color: 'white', border: 'none', padding: '0 20px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' 
-                      }}
-                   >
-                      {verifyingUpi ? '...' : isUpiVerified ? 'Verified ✓' : 'Verify'}
-                   </button>
-               </div>
-               {isUpiVerified && <p style={{ color: '#166534', fontSize: '0.8rem', marginTop: '5px' }}><strong>Note:</strong> This is a simulation. No real money will be deducted.</p>}
-            </div>
-         )}
-      </div>
-
-      {/* --- OPTION 3: COD --- */}
-      <div style={optionStyle(paymentMethod === 'cod')} onClick={() => setPaymentMethod('cod')}>
-         <div style={radioHeaderStyle}>
-            <input type="radio" checked={paymentMethod === 'cod'} readOnly />
-            Cash on Delivery
-         </div>
-         {paymentMethod === 'cod' && (
-            <div style={{ marginTop: '1rem', paddingLeft: '1.8rem', animation: 'fadeIn 0.3s' }}>
-               <div style={{ background: '#ecfdf5', padding: '15px', borderRadius: '6px', border: '1px solid #a7f3d0', color: '#065f46', display:'flex', gap:'12px' }}>
-                  <span style={{ fontSize: '1.5rem' }}>🚚</span>
-                  <div>
-                      <strong style={{ display:'block', marginBottom:'4px' }}>Pay upon delivery</strong>
-                      <div style={{ fontSize: '0.9rem', opacity: 0.9 }}>
-                         You can pay via Cash or UPI when the delivery agent arrives at your doorstep.
-                      </div>
-                  </div>
-               </div>
-               <ul style={{ marginTop: '1rem', color: '#666', fontSize: '0.85rem', paddingLeft: '1.2rem', lineHeight: '1.6' }}>
-                  <li>Please keep exact change handy to avoid inconvenience.</li>
-                  <li>We do not accept old notes or foreign currency.</li>
-               </ul>
-            </div>
-         )}
-      </div>
-
-      {/* SUBMIT BUTTON */}
-      <button 
-        type="submit" 
-        disabled={
-            loading || 
-            (paymentMethod === 'card' && (!stripe || !elements)) ||
-            (paymentMethod === 'upi' && !isUpiVerified)
-        } 
-        className="btn-pay" 
-        style={{ marginTop: '1rem', opacity: (paymentMethod === 'upi' && !isUpiVerified) ? 0.6 : 1 }}
-      >
-        {loading ? "Processing..." : paymentMethod === 'cod' ? "Place Order (COD)" : `Pay ₹${finalTotal.toLocaleString()}`}
-      </button>
-      
-      {/* SHOW COUPON INFO IF APPLIED */}
-      {discountPercent > 0 && (
-          <div style={{ textAlign:'center', marginTop:'10px', color:'#166534', fontSize:'0.9rem', fontWeight:'bold' }}>
-              🎉 Coupon "{couponCode}" applied! You saved {discountPercent}%
-          </div>
-      )}
-      
-      {paymentMethod === 'card' && (
-          <div style={{textAlign:'center', marginTop:'1rem', fontSize:'0.8rem', color:'#888'}}>
-            🔒 Secured by Stripe 256-bit encryption
-          </div>
-      )}
-
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-      `}</style>
-    </form>
-  );
-};
-
-const CheckoutPage = () => {
-  return (
-    <div className="checkout-wrapper">
+    <div className="checkout-page">
       <div className="checkout-card">
-        <h1 className="checkout-header">Secure Checkout</h1>
-        <p className="checkout-sub">Complete your purchase safely.</p>
-        
-        <Elements stripe={stripePromise}>
-          <CheckoutForm />
-        </Elements>
+        <h1 className="checkout-title">Checkout</h1>
+        <p className="checkout-subtitle">Complete your order</p>
+
+        {/* Order Summary */}
+        <div style={{
+          background: 'var(--slate)',
+          padding: 'var(--space-lg)',
+          marginBottom: 'var(--space-2xl)',
+          border: 'var(--border-subtle)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+            <span style={{ color: 'var(--fog)' }}>Subtotal</span>
+            <span style={{ color: 'var(--ivory)' }}>₹{formatTotal(subtotal)}</span>
+          </div>
+          {appliedCoupon && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+              <span style={{ color: 'var(--gold)' }}>Discount ({appliedCoupon.code})</span>
+              <span style={{ color: 'var(--gold)' }}>-₹{formatTotal(subtotal - finalTotal)}</span>
+            </div>
+          )}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            paddingTop: 'var(--space-md)',
+            borderTop: 'var(--border-subtle)',
+            marginTop: 'var(--space-sm)'
+          }}>
+            <span style={{ color: 'var(--ivory)', fontWeight: '600' }}>Total</span>
+            <span style={{ color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '600' }}>
+              ₹{formatTotal(finalTotal)}
+            </span>
+          </div>
+        </div>
+
+        {/* Shipping */}
+        <div style={{ marginBottom: 'var(--space-2xl)' }}>
+          <span className="label" style={{ display: 'block', marginBottom: 'var(--space-md)', color: 'var(--gold)' }}>
+            Shipping Address
+          </span>
+          {defaultAddress ? (
+            <div style={{ color: 'var(--fog)', lineHeight: '1.8' }}>
+              <p>{defaultAddress.address}</p>
+              <p>{defaultAddress.city}, {defaultAddress.state} — {defaultAddress.postalCode}</p>
+              <p>{defaultAddress.country}</p>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate('/profile', { state: { fromCart: true } })}
+              className="btn-ghost"
+            >
+              Add address →
+            </button>
+          )}
+        </div>
+
+        {/* Payment Method */}
+        <form onSubmit={handleSubmit}>
+          <span className="label" style={{ display: 'block', marginBottom: 'var(--space-lg)', color: 'var(--gold)' }}>
+            Payment Method
+          </span>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)', marginBottom: 'var(--space-xl)' }}>
+            {[
+              { id: 'card', label: 'Credit / Debit Card' },
+              { id: 'upi', label: 'UPI' },
+              { id: 'cod', label: 'Cash on Delivery' }
+            ].map(method => (
+              <label
+                key={method.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-md)',
+                  padding: 'var(--space-md) var(--space-lg)',
+                  background: paymentMethod === method.id ? 'var(--gold-glow)' : 'var(--slate)',
+                  border: paymentMethod === method.id ? 'var(--border-gold)' : 'var(--border-subtle)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value={method.id}
+                  checked={paymentMethod === method.id}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  style={{ accentColor: 'var(--gold)' }}
+                />
+                <span style={{ color: 'var(--ivory)' }}>{method.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Card Input */}
+          {paymentMethod === 'card' && (
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--slate)',
+              border: 'var(--border-subtle)',
+              marginBottom: 'var(--space-xl)'
+            }}>
+              <CardElement options={{ style: cardStyle, hidePostalCode: true }} />
+            </div>
+          )}
+
+          {/* UPI Input */}
+          {paymentMethod === 'upi' && (
+            <div style={{ marginBottom: 'var(--space-xl)' }}>
+              <div style={{ display: 'flex', gap: 'var(--space-sm)' }}>
+                <input
+                  type="text"
+                  placeholder="username@upi"
+                  className="form-input"
+                  value={upiId}
+                  onChange={(e) => { setUpiId(e.target.value); setUpiVerified(false); }}
+                  style={{
+                    flex: 1,
+                    padding: 'var(--space-md)',
+                    background: 'var(--slate)',
+                    border: 'var(--border-light)'
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (upiId.includes('@')) {
+                      setUpiVerified(true);
+                      toast.success('UPI verified');
+                    } else {
+                      toast.error('Invalid UPI ID');
+                    }
+                  }}
+                  className="btn-outline"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  Verify
+                </button>
+              </div>
+              {upiVerified && (
+                <p style={{ marginTop: 'var(--space-sm)', color: 'var(--gold)', fontSize: '0.85rem' }}>
+                  ✓ UPI ID verified
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* COD Info */}
+          {paymentMethod === 'cod' && (
+            <div style={{
+              padding: 'var(--space-lg)',
+              background: 'var(--wine)',
+              border: '1px solid var(--burgundy)',
+              marginBottom: 'var(--space-xl)',
+              color: 'var(--mist)',
+              fontSize: '0.9rem'
+            }}>
+              Pay ₹{formatTotal(finalTotal)} when your order arrives.
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="submit-btn"
+            disabled={loading || !defaultAddress}
+          >
+            {loading ? 'Processing...' : `Pay ₹${formatTotal(finalTotal)}`}
+          </button>
+        </form>
       </div>
     </div>
   );
 };
+
+const CheckoutPage = () => (
+  <Elements stripe={stripePromise}>
+    <CheckoutForm />
+  </Elements>
+);
 
 export default CheckoutPage;

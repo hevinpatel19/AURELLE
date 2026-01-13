@@ -1,168 +1,426 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import API_BASE_URL from "../api";
-
-
-// --- CONSTANTS & ASSETS ---
-const IMAGES = {
-  hero: "https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1000&q=80",
-  men: "https://images.unsplash.com/photo-1617137984095-74e4e5e3613f?q=80&w=1000&auto=format&fit=crop",
-  women: "https://images.unsplash.com/photo-1532453288672-3a27e9be9efd?q=80&w=800&auto=format&fit=crop",
-  footwear: "https://images.unsplash.com/photo-1603808033192-082d6919d3e1?q=80&w=800&auto=format&fit=crop"
-};
-
-const BRAND_FEATURES = [
-  { icon: '🚀', title: 'Fast Shipping', desc: 'Express delivery worldwide.' },
-  { icon: '💎', title: 'Authentic', desc: '100% Verified products.' },
-  { icon: '🛡️', title: 'Secure', desc: 'Encrypted protection.' },
-  { icon: '↺', title: 'Easy Returns', desc: '30-day hassle-free policy.' }
-];
-
-// --- INLINE STYLES ---
-const textOverlayStyle = {
-  position: 'absolute', bottom: '30px', left: '30px', color: '#F9F8F6',
-  fontSize: '1.5rem', fontWeight: '800', textTransform: 'uppercase',
-  letterSpacing: '2px', textShadow: '0 4px 12px rgba(0,0,0,0.4)', pointerEvents: 'none'
-};
+import axios from 'axios';
 
 const HomePage = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    // 1. Data Fetching
     const fetchData = async () => {
       try {
-        const [featRes, catRes] = await Promise.all([
-          axios.get(`${API_BASE_URL}/api/products/featured`),
-
-          axios.get(`${API_BASE_URL}/api/categories`)
-
+        const [prodRes, catRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/products'),
+          axios.get('http://localhost:5000/api/categories')
         ]);
-        setProducts(featRes.data);
+        setProducts(prodRes.data);
         setCategories(catRes.data);
-      } catch (err) {
-        console.error("Error loading data:", err);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
       }
     };
     fetchData();
-
-    // 2. Scroll Animation Listener
-    const handleScroll = () => {
-      document.querySelectorAll('.reveal').forEach(el => {
-        if (el.getBoundingClientRect().top < window.innerHeight - 100) {
-          el.classList.add('active');
-        }
-      });
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const getLink = (name) => {
-    const cat = categories.find(c => c.name.toLowerCase().includes(name.toLowerCase()));
-    return cat ? `/category/${cat._id}` : '#';
-  };
+  // Limit Season's Edit to 4 products for curated feel
+  const featuredProducts = products.slice(0, 4);
 
   return (
-    <div>
-      {/* INTERNAL CSS FOR ZOOM */}
-      <style>{`
-        .zoom-card { position: relative; overflow: hidden; display: block; }
-        .zoom-card img { width: 100%; height: 100%; object-fit: cover; transition: transform 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); filter: brightness(0.9); }
-        .zoom-card:hover img { transform: scale(1.05); filter: brightness(1); }
-      `}</style>
-
-      {/* 1. HERO SECTION */}
-      <section className="hero-wrapper">
-        <div className="hero-text">
-          <h1 className="hero-headline">Designed <br/> For The <br/> Bold.</h1>
-          <p style={{ marginBottom: '2.5rem', color: '#595959', fontSize: '1.1rem', maxWidth: '450px', lineHeight: '1.8' }}>
-            “Considered luxury shaped by craftsmanship and precision. Designed to transcend trends and define elegance.”
+    <>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          HERO
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="hero">
+        <div className="hero-bg">
+          <img
+            src="https://images.unsplash.com/photo-1558171813-4c088753af8f?w=1920&q=80"
+            alt="Editorial Fashion"
+          />
+        </div>
+        <div className="hero-content">
+          <span className="hero-tagline">Winter 2026</span>
+          <h1 className="hero-title">
+            The Art of<br />Darkness
+          </h1>
+          <p className="hero-subtitle">
+            Where shadows meet sophistication. A curation for those who
+            understand that true luxury whispers.
           </p>
-          <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-            <a href="#collection" className="btn-primary">Shop Collection</a>
-            <Link to="/register" style={{ fontWeight: '600', textTransform: 'uppercase', borderBottom: '1px solid #1a1a1a', fontSize: '0.85rem', letterSpacing: '1.5px', color: '#1a1a1a' }}>
-              Join The Club
-            </Link>
-          </div>
-        </div>
-        <div className="hero-visual">
-          <img src={IMAGES.hero} alt="Hero Visual" />
-        </div>
-      </section>
-
-      {/* 2. BENTO GRID CATEGORIES */}
-      <section id="collection" className="section" style={{ background: '#F9F8F6' }}>
-        <h2 className="section-title" style={{ marginBottom: '2rem', color: '#1a1a1a' }}>Curated Collections</h2>
-        
-        <div className="reveal" style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gridTemplateRows: '1fr 1fr', gap: '20px', height: '600px', width: '100%' }}>
-          
-          {/* Men (Tall) */}
-          <Link to={getLink('men')} className="zoom-card" style={{ gridRow: '1 / 3' }}>
-             <img src={IMAGES.men} alt="Men" />
-             <div style={textOverlayStyle}>Men's Collection</div>
-          </Link>
-
-          {/* Women */}
-          <Link to={getLink('women')} className="zoom-card">
-             <img src={IMAGES.women} alt="Women" />
-             <div style={textOverlayStyle}>Women's Collection</div>
-          </Link>
-
-          {/* Footwear */}
-          <Link to={getLink('footwear')} className="zoom-card">
-             <img src={IMAGES.footwear} alt="Footwear" />
-             <div style={textOverlayStyle}>Premium Footwear</div>
+          <Link to="/category/men" className="btn-primary">
+            <span>Explore Collection</span>
           </Link>
         </div>
       </section>
 
-      {/* 3. VISUAL BREAK */}
-      <section className="reveal" style={{ background: '#1a1a1a', color: '#F9F8F6', padding: '4rem 4%', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '3rem', fontWeight: '800', marginBottom: '1.5rem', lineHeight: '1.1', letterSpacing: '-1px' }}>
-          "QUALITY IS NOT AN ACT, <br/> IT IS A HABIT."
-        </h2>
-        <p style={{ opacity: 0.6, letterSpacing: '1px', textTransform: 'uppercase', fontSize: '0.9rem' }}>The new standard for modern living.</p>
-      </section>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          CURATED CATEGORIES — New "Editorial Banner" Design
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section style={{
+        padding: 'var(--space-5xl) 0',
+        background: 'var(--abyss)',
+        borderBottom: 'var(--border-subtle)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
+          <span className="section-eyebrow">Explore</span>
+          <h2 className="section-title">Shop by Category</h2>
+        </div>
 
-      {/* 4. FEATURED PRODUCTS (UPDATED WITH FILTER) */}
-      <section className="section" style={{ background: '#F9F8F6'}}>
-        <h2 className="section-title" style={{ color: '#1a1a1a' }}>Trending Now</h2>
-        <div className="product-grid reveal">
-          {products
-            .filter(p => p.countInStock > 0) // <--- HIDES OUT OF STOCK ITEMS
-            .map(p => (
-            <Link to={`/product/${p._id}`} key={p._id} className="product-card">
-              <div className="card-img-box">
-                 <img src={p.imageUrl} alt={p.name} />
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))',
+          gap: '2px', // Thin grid gap for premium editorial look
+          background: 'var(--border-subtle)', // Creates the line effect
+          maxWidth: '1600px',
+          margin: '0 auto',
+          borderTop: '2px solid var(--border-subtle)',
+          borderBottom: '2px solid var(--border-subtle)'
+        }}>
+          {categories.slice(0, 4).map((cat, index) => (
+            <Link
+              key={cat._id}
+              to={`/category/${cat._id}`}
+              style={{
+                position: 'relative',
+                height: '500px',
+                overflow: 'hidden',
+                display: 'block',
+                background: 'var(--charcoal)'
+              }}
+              className="category-tile"
+            >
+              {/* Background Image */}
+              <img
+                src={[
+                  "/images/cat_men.png",
+                  "/images/cat_women.png",
+                  "/images/cat_acc.png",
+                  "/images/cat_shoes.png"
+                ][index]}
+                alt={cat.name}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  transition: 'transform 1.4s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.5s',
+                  opacity: 0.6,
+                  filter: 'brightness(1.1) contrast(1.02)' // Visual Polish
+                }}
+                className="category-img"
+              />
+
+              {/* Overlay Gradient */}
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: 'linear-gradient(to top, var(--abyss) 0%, rgba(5,5,5,0.4) 60%, transparent 100%)',
+                opacity: 0.8
+              }} />
+
+              {/* Content */}
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                width: '100%',
+                padding: 'var(--space-2xl) var(--space-xl)',
+                textAlign: 'center',
+                transform: 'translateY(10px)',
+                transition: 'transform 0.5s var(--ease-out-expo)'
+              }} className="category-content">
+                <span style={{
+                  display: 'block',
+                  color: 'var(--gold)',
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  marginBottom: 'var(--space-md)',
+                  opacity: 0,
+                  transform: 'translateY(20px)',
+                  transition: 'all 0.5s 0.1s'
+                }} className="category-eyebrow">
+                  Collection
+                </span>
+
+                <h3 style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '2.5rem',
+                  fontWeight: '400',
+                  color: 'var(--ivory)',
+                  marginBottom: 'var(--space-lg)',
+                  transition: 'color 0.3s'
+                }}>
+                  {cat.name}
+                </h3>
+
+                <span style={{
+                  display: 'inline-block',
+                  border: '1px solid var(--ivory)',
+                  padding: '12px 24px',
+                  color: 'var(--ivory)',
+                  fontSize: '0.75rem',
+                  letterSpacing: '0.15em',
+                  textTransform: 'uppercase',
+                  opacity: 0,
+                  transform: 'translateY(20px)',
+                  transition: 'all 0.5s 0.2s'
+                }} className="category-btn">
+                  Explore
+                </span>
               </div>
-              <div className="card-info-container">
-                <h3 className="card-title">{p.name}</h3>
-                <p className="card-price">₹{p.price.toLocaleString('en-IN')}</p>
-                <div className="view-btn">View Details</div>
+
+              {/* CSS for hover effects */}
+              <style>{`
+                .category-tile:hover .category-img {
+                  transform: scale(1.05);
+                  opacity: 0.8;
+                }
+                .category-tile:hover .category-content {
+                  transform: translateY(0);
+                }
+                .category-tile:hover .category-eyebrow {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+                .category-tile:hover .category-btn {
+                  opacity: 1;
+                  transform: translateY(0);
+                }
+              `}</style>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          SIGNATURE STRIP
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section style={{
+        padding: 'var(--space-4xl) 4%',
+        background: 'var(--charcoal)',
+        textAlign: 'center',
+        borderTop: 'var(--border-subtle)',
+        borderBottom: 'var(--border-subtle)'
+      }}>
+        <p style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 'clamp(1.25rem, 3vw, 2rem)',
+          fontWeight: '400',
+          fontStyle: 'italic',
+          color: 'var(--mist)',
+          maxWidth: '700px',
+          margin: '0 auto',
+          lineHeight: '1.6'
+        }}>
+          "True elegance is not about being noticed,
+          it's about being remembered."
+        </p>
+        <div className="divider" style={{ marginTop: 'var(--space-xl)' }}></div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          FEATURED PRODUCTS — Curated to 4 Items
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="section section-dark">
+        <div className="section-header">
+          <span className="section-eyebrow">Curated Selection</span>
+          <h2 className="section-title">This Season's Edit</h2>
+          <p className="section-subtitle">
+            Pieces that define the contemporary wardrobe
+          </p>
+        </div>
+
+        <div className="product-grid" style={{ maxWidth: '1400px', margin: '0 auto' }}>
+          {featuredProducts.map((product) => (
+            <Link
+              key={product._id}
+              to={`/product/${product._id}`}
+              className="product-card"
+            >
+              <div className="product-card-image">
+                <img src={product.imageUrl} alt={product.name} />
+                {product.countInStock === 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: 'var(--space-md)',
+                    left: 'var(--space-md)',
+                    padding: 'var(--space-xs) var(--space-md)',
+                    background: 'var(--abyss)',
+                    color: 'var(--mist)',
+                    fontSize: '0.6rem',
+                    fontWeight: '600',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    border: 'var(--border-light)',
+                    zIndex: '2'
+                  }}>
+                    Sold Out
+                  </span>
+                )}
+              </div>
+              <div className="product-card-body">
+                <h3 className="product-card-name">{product.name}</h3>
+                <p className="product-card-price">₹{product.price.toLocaleString('en-IN')}</p>
               </div>
             </Link>
           ))}
         </div>
       </section>
 
-      {/* 5. BRAND VALUES */}
-      <section className="section" style={{ padding: '3.5rem 3%' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '4rem', textAlign: 'center' }}>
-          {BRAND_FEATURES.map((feature, index) => (
-            <div key={index}>
-              <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>{feature.icon}</div>
-              <h3 style={{ fontWeight: '700', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.9rem' }}>
-                {feature.title}
-              </h3>
-              <p style={{ color: '#595959', fontSize: '0.9rem' }}>{feature.desc}</p>
+      {/* ═══════════════════════════════════════════════════════════════════════
+          ATELIER INFO
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="section section-gradient" style={{ textAlign: 'center' }}>
+        <span className="section-eyebrow">The Atelier</span>
+        <h2 className="section-title" style={{ marginBottom: 'var(--space-xl)' }}>
+          Crafted With Intent
+        </h2>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 'var(--space-3xl)',
+          maxWidth: '1000px',
+          margin: '0 auto'
+        }}>
+          {[
+            { number: "01", title: "Handpicked Materials", desc: "Every fabric sourced from the world's finest mills" },
+            { number: "02", title: "Meticulous Construction", desc: "Crafted with precision by master artisans" },
+            { number: "03", title: "Timeless Design", desc: "Pieces that transcend seasons and trends" }
+          ].map((item) => (
+            <div key={item.number} style={{ textAlign: 'center' }}>
+              <span style={{
+                display: 'block',
+                fontFamily: 'var(--font-display)',
+                fontSize: '3rem',
+                fontWeight: '300',
+                color: 'var(--gold)',
+                marginBottom: 'var(--space-md)',
+                opacity: '0.5'
+              }}>
+                {item.number}
+              </span>
+              <h4 style={{
+                fontSize: '1rem',
+                fontWeight: '500',
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--ivory)',
+                marginBottom: 'var(--space-sm)'
+              }}>
+                {item.title}
+              </h4>
+              <p style={{
+                fontSize: '0.9rem',
+                color: 'var(--fog)',
+                lineHeight: '1.7'
+              }}>
+                {item.desc}
+              </p>
             </div>
           ))}
         </div>
       </section>
-    </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          NEWSLETTER
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section style={{
+        padding: 'var(--space-5xl) 4%',
+        background: 'var(--charcoal)',
+        textAlign: 'center'
+      }}>
+        <span className="section-eyebrow" style={{ marginBottom: 'var(--space-md)', display: 'block' }}>
+          Join Us
+        </span>
+        <h2 className="display-md" style={{ marginBottom: 'var(--space-md)' }}>
+          Be the First to Know
+        </h2>
+        <p style={{
+          color: 'var(--fog)',
+          marginBottom: 'var(--space-2xl)',
+          maxWidth: '400px',
+          margin: '0 auto var(--space-2xl)'
+        }}>
+          Exclusive access to new arrivals and private offers
+        </p>
+
+        <form
+          style={{
+            display: 'flex',
+            gap: 'var(--space-sm)',
+            maxWidth: '450px',
+            margin: '0 auto'
+          }}
+          onSubmit={(e) => e.preventDefault()}
+        >
+          <input
+            type="email"
+            placeholder="Enter your email"
+            className="form-input"
+            style={{
+              flex: 1,
+              padding: 'var(--space-md) var(--space-lg)',
+              background: 'var(--slate)',
+              border: 'var(--border-light)',
+              borderRadius: '0'
+            }}
+          />
+          <button type="submit" className="btn-primary">
+            <span>Subscribe</span>
+          </button>
+        </form>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          FOOTER
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <footer className="footer">
+        <div className="footer-grid">
+          <div>
+            <div className="footer-brand">NOIR</div>
+            <p className="footer-desc">
+              A dark luxury experience for those who understand that
+              true sophistication lies in the shadows.
+            </p>
+          </div>
+
+          <div>
+            <h4 className="footer-heading">Shop</h4>
+            <ul className="footer-links">
+              {categories.map(cat => (
+                <li key={cat._id}>
+                  <Link to={`/category/${cat._id}`}>{cat.name}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="footer-heading">Company</h4>
+            <ul className="footer-links">
+              <li><Link to="/">About</Link></li>
+              <li><Link to="/">Sustainability</Link></li>
+              <li><Link to="/">Careers</Link></li>
+              <li><Link to="/">Press</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="footer-heading">Support</h4>
+            <ul className="footer-links">
+              <li><Link to="/">Contact Us</Link></li>
+              <li><Link to="/">Shipping</Link></li>
+              <li><Link to="/">Returns</Link></li>
+              <li><Link to="/">FAQ</Link></li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          © 2026 NOIR. All rights reserved.
+        </div>
+      </footer>
+    </>
   );
 };
 

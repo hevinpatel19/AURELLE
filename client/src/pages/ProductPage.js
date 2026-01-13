@@ -1,352 +1,452 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
-import { AuthContext } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import Swal from 'sweetalert2';
-import API_BASE_URL from "../api";
-
 
 const ProductPage = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const { addToCart, user } = useContext(AuthContext);
-
+  const { addToCart, user } = useAuth();
   const [product, setProduct] = useState(null);
-  const [relatedProducts, setRelatedProducts] = useState([]); 
   const [loading, setLoading] = useState(true);
+  const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [reviewText, setReviewText] = useState('');
+  const [relatedProducts, setRelatedProducts] = useState([]);
+
+  // Reviews State
+  const [reviews, setReviews] = useState([]);
   const [rating, setRating] = useState(5);
-  
-  // --- STATE: SELECTION ---
-  const [selectedSize, setSelectedSize] = useState(''); 
+  const [comment, setComment] = useState('');
+  const [isWishlisted, setIsWishlisted] = useState(false);
 
-  // --- STATE FOR UI INTERACTIVITY ---
-  const [isInWishlist, setIsInWishlist] = useState(false);
-  const [isBtnHovered, setIsBtnHovered] = useState(false);
-
-  // --- FETCH PRODUCT ---
-  const fetchProductAndWishlist = async () => {
-    try {
-      setLoading(true); 
-      const productPromise = axios.get(
-        `${API_BASE_URL}/api/products/${id}`
-      );
-
-      const relatedPromise = axios.get(
-      `${API_BASE_URL}/api/products/${id}/related`
-      );
-
-      
-      let wishlistPromise = Promise.resolve({ data: [] });
-      if (user) {
-        const token = localStorage.getItem('token');
-        wishlistPromise = axios.get(
-          `${API_BASE_URL}/api/users/wishlist`,
-          {
-            headers: { Authorization: `Bearer ${token}` }
-          }
-        );
-
-      }
-
-      const [res, relatedRes, wishRes] = await Promise.all([
-          productPromise, 
-          relatedPromise.catch(e => ({ data: [] })), 
-          wishlistPromise.catch(e => ({ data: [] }))
-      ]);
-
-      setProduct(res.data);
-      setRelatedProducts(relatedRes.data);
-
-      if (user) {
-        const found = wishRes.data.some(item => (item._id ? item._id.toString() : item.toString()) === id);
-        setIsInWishlist(found);
-      }
-      setLoading(false);
-    } catch (err) {
-      console.error(err);
-      setLoading(false);
-      toast.error("Failed to load product");
-    }
-  };
+  // Accordion State
+  const [openSection, setOpenSection] = useState('details');
 
   useEffect(() => {
-    fetchProductAndWishlist();
+    // FORCE RESET ON ID CHANGE
     window.scrollTo(0, 0);
-    setSelectedSize(''); 
-    setQuantity(1); // Reset quantity logic
-    // eslint-disable-next-line
-  }, [id, user]);
+    setProduct(null);
+    setLoading(true);
+    setReviews([]);
+    setRelatedProducts([]);
+    setSelectedSize('');
+    setQuantity(1);
+    setIsWishlisted(false);
 
-  // --- HELPER: GET STRICT STOCK LIMIT ---
-  const getMaxStock = () => {
-      if (!product) return 0;
-      if (product.hasVariations) {
-          // If variants exist, user MUST select a size to see stock
-          if (!selectedSize) return 0; 
-          
-          const variant = product.variants.find(v => v.value === selectedSize);
-          return variant ? variant.stock : 0;
-      }
-      // If no variations (Accessory), use total count
-      return product.countInStock; 
-  };
+    const fetchProduct = async () => {
+      if (!id) return;
 
-  // --- HANDLER: INCREASE QTY ---
-  const handleIncreaseQty = () => {
-      const max = getMaxStock();
-      
-      // Only check size if product actually HAS variations
-      if (product.hasVariations && !selectedSize) {
-          toast.error(`Please select a ${product.variationType || 'size'} first`);
-          return;
-      }
+      try {
+        const { data } = await axios.get(`http://localhost:5000/api/products/${id}`);
+        // Ensure we actually got the *correct* product (paranoia check)
+        if (data._id === id) {
+          setProduct(data);
+          setReviews(data.reviews || []);
 
-      if (quantity >= max) {
-          toast.error(`Only ${max} items available!`);
-          return;
-      }
-      setQuantity(q => q + 1);
-  };
+          // Auto-select first variant if available
+          if (data.variants && data.variants.length > 0) {
+            const inStockVariant = data.variants.find(v => v.stock > 0);
+            if (inStockVariant) setSelectedSize(inStockVariant.value);
+          }
 
-  // --- ADD TO CART ---
-  const handleAddToCart = async () => {
-    if (!user) { navigate('/login'); return; }
-    
-    // Check if totally out of stock (For simple products)
-    if (product.countInStock === 0 && !product.hasVariations) { 
-        toast.error("Sorry, this item is out of stock."); return; 
-    }
-    
-    // 1. Validate Selection (ONLY IF HAS VARIATIONS)
-    if (product.hasVariations && !selectedSize) {
-        toast.error(`Please select a ${product.variationType || 'option'}`);
-        return;
-    }
-
-    // 2. Validate Specific Limit
-    const max = getMaxStock();
-    if (max === 0) {
-        toast.error("Sorry, this option is out of stock.");
-        return;
-    }
-    if (quantity > max) {
-        toast.error(`Only ${max} items available.`);
-        return;
-    }
-
-    // Pass null/empty string for size if it's an accessory
-    await addToCart(product._id, quantity, selectedSize); 
-    toast.success('Added to cart!');
-  };
-
-  // --- TOGGLE WISHLIST ---
-  const handleToggleWishlist = async () => {
-    if (!user) { toast.error("Please login to save items"); return; }
-    const previousState = isInWishlist;
-    setIsInWishlist(!previousState);
-    try {
-        const token = localStorage.getItem('token');
-        if (previousState) {
-            await axios.delete(`${API_BASE_URL}/api/users/wishlist/${product._id}`, { headers: { Authorization: `Bearer ${token}` } });
-
-            toast.success("Removed from Wishlist");
-        } else {
-            await axios.post(`${API_BASE_URL}/api/users/wishlist`, { productId: product._id }, { headers: { Authorization: `Bearer ${token}` } });
-
-            toast.success("Added to Wishlist ❤️");
+          // Fetch Related Products (same category)
+          if (data.category && data.category._id) {
+            try {
+              // Use the optimized endpoint if available, or fallback to filter
+              // Ideally backend has /api/products/:id/related. 
+              // Let's rely on client-side filter for safety as verified in prev steps
+              const { data: allProducts } = await axios.get('http://localhost:5000/api/products');
+              const filtered = allProducts
+                .filter(p => p.category?._id === data.category._id && p._id !== data._id)
+                .slice(0, 3);
+              setRelatedProducts(filtered);
+            } catch (err) {
+              console.error("Related fetch error", err);
+            }
+          }
         }
-    } catch (error) { setIsInWishlist(previousState); toast.error("Error updating wishlist"); }
-  };
+        setLoading(false);
+      } catch (error) {
+        console.error("Product fetch failed:", error);
+        setLoading(false);
+        toast.error("Failed to load product details");
+      }
+    };
+    fetchProduct();
+  }, [id]);
 
-  // --- REVIEW LOGIC ---
-  const submitReview = async (e) => {
-    e.preventDefault();
-    if (!user) return navigate('/login');
+  // Wishlist Logic
+  useEffect(() => {
+    if (user && product) {
+      const checkWishlist = async () => {
+        try {
+          const { data } = await axios.get('http://localhost:5000/api/users/profile', {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          });
+
+          // Defensive check against undefined wishlist
+          const wishlist = data.wishlist || [];
+
+          // Check if product is in wishlist (handles ID strings or populated objects)
+          const exists = wishlist.some(item => {
+            const itemId = item._id || item;
+            return itemId.toString() === product._id.toString();
+          });
+
+          setIsWishlisted(exists);
+        } catch (err) {
+          // Silent fail
+        }
+      };
+      checkWishlist();
+    }
+  }, [user, product]);
+
+  const toggleWishlist = async () => {
+    if (!user) return toast.error('Please login to wishlist');
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_BASE_URL}/api/products/${id}/reviews`, { rating, comment: reviewText }, { headers: { Authorization: `Bearer ${token}` } });
-
-      toast.success('Review Submitted!');
-      const { data } = await axios.get(`${API_BASE_URL}/api/products/${id}`);
-
-      setProduct(data);
-      setReviewText(''); setRating(5);
-    } catch (err) { toast.error(err.response?.data?.message || 'Error submitting review'); }
-  };
-
-  const handleDeleteReview = async (reviewId) => {
-    const result = await Swal.fire({ title: 'Delete Review?', text: "You won't be able to revert this!", icon: 'warning', showCancelButton: true, confirmButtonColor: '#1a1a1a', cancelButtonColor: '#d33', confirmButtonText: 'Yes, delete it!' });
-    if (result.isConfirmed) {
-      try {
-          const token = localStorage.getItem('token');
-          await axios.delete(`${API_BASE_URL}/api/products/${id}/reviews/${reviewId}`, { headers: { Authorization: `Bearer ${token}` } });
-
-          toast.success('Deleted');
-          const { data } = await axios.get(`${API_BASE_URL}/api/products/${id}`);
-
-          setProduct(data);
-      } catch (err) { toast.error("Failed to delete review"); }
+      if (isWishlisted) {
+        await axios.delete(`http://localhost:5000/api/users/wishlist/${product._id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        toast.success('Removed from wishlist');
+        setIsWishlisted(false);
+      } else {
+        await axios.post('http://localhost:5000/api/users/wishlist', {
+          productId: product._id
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        toast.success('Added to wishlist');
+        setIsWishlisted(true);
+      }
+    } catch (error) {
+      const msg = error.response?.data?.message || 'Wishlist action failed';
+      toast.error(msg);
     }
   };
 
-  if (loading) return <div style={{paddingTop:'100px', textAlign:'center'}}>Loading...</div>;
-  if (!product) return <div style={{paddingTop:'100px', textAlign:'center'}}>Product not found</div>;
+  const handleAddToCart = () => {
+    if (!product) return;
 
-  // General out of stock check (for UI overlay)
-  const isOutOfStock = product.countInStock === 0 && !product.hasVariations;
+    // Check stock for simple product or variant
+    if (product.hasVariations) {
+      if (!selectedSize) return toast.error(`Please select a ${product.variationType || 'size'}`);
+      const variant = product.variants.find(v => v.value === selectedSize);
+      if (!variant || variant.stock < quantity) return toast.error('Selected option out of stock');
+    } else {
+      if (product.countInStock < quantity) return toast.error('Out of stock');
+    }
+
+    addToCart(product._id, quantity, selectedSize);
+    toast.success('Added to Cart');
+  };
+
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) return toast.error('Please login first');
+    try {
+      await axios.post(`http://localhost:5000/api/products/${id}/reviews`,
+        { rating, comment },
+        { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+      );
+      toast.success('Review Submitted');
+      setComment('');
+      setRating(5);
+
+      // Refresh product data to show new review
+      const { data } = await axios.get(`http://localhost:5000/api/products/${id}`);
+      setProduct(data);
+      setReviews(data.reviews || []);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Review failed');
+    }
+  };
+
+  // Loading State
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '80vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--abyss)',
+        color: 'var(--fog)',
+        paddingTop: '80px'
+      }}>
+        <div className="skeleton" style={{ width: '200px', height: '20px', borderRadius: '4px' }}></div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div style={{ padding: '8rem', textAlign: 'center', minHeight: '60vh', color: 'var(--fog)', paddingTop: '150px' }}>
+        <h2>Product not found</h2>
+        <Link to="/" className="btn-outline" style={{ marginTop: '2rem' }}>Return Home</Link>
+      </div>
+    );
+  }
+
+  // Stock Check Helper
+  const isVariantMode = product.hasVariations;
+  // If variant mode but no size selected, we don't know stock yet (unless ALL variants out)
+  const currentVariant = isVariantMode && selectedSize ? product.variants.find(v => v.value === selectedSize) : null;
+  const variantOutOfStock = isVariantMode && selectedSize && currentVariant?.stock === 0;
+
+  // Calculate max quantity based on selected variant or simple product stock
+  const maxQuantity = isVariantMode
+    ? (currentVariant?.stock || 1)
+    : (product.countInStock || 1);
+
+  // Overall out of stock check
+  const isOutOfStock = isVariantMode
+    ? product.variants.every(v => v.stock === 0)
+    : product.countInStock === 0;
 
   return (
-    <>
-    <style>{`
-      .size-btn { width: auto; min-width: 45px; height: 45px; padding: 0 15px; border: 1px solid #ddd; background: white; color: #333; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
-      .size-btn:hover { border-color: #000; }
-      .size-btn.selected { background: #1a1a1a; color: white; border-color: #1a1a1a; }
-      .size-btn.disabled { opacity: 0.5; cursor: not-allowed; background: #f9f9f9; text-decoration: line-through; color: #aaa; }
-      
-      .rp-card { cursor: pointer; text-align: center; transition: transform 0.3s ease, box-shadow 0.3s ease; background: #fff; padding-bottom: 10px; }
-      .rp-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); }
-      .rp-img-container { background: #f4f4f5; margin-bottom: 1.5rem; overflow: hidden; aspect-ratio: 3/4; display: flex; align-items: center; justify-content: center; }
-      .rp-img { width: 100%; height: 100%; object-fit: cover; mix-blend-mode: multiply; transition: transform 0.6s; }
-      .rp-card:hover .rp-img { transform: scale(1.05); }
-      .rp-view-btn { margin-top: 10px; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; color: #000; display: inline-block; border-bottom: 2px solid #C5A059; padding-bottom: 3px; opacity: 0; transform: translateY(15px); transition: all 0.3s ease; }
-      .rp-card:hover .rp-view-btn { opacity: 1; transform: translateY(0); }
-    `}</style>
-
-    <div className="product-page-wrapper" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', minHeight: '100vh', paddingTop: '60px' }}>
-      
-      {/* LEFT: IMAGE */}
-      <div className="pp-image-side" style={{ background: 'var(--bg-panel)', height: 'calc(100vh - 60px)', position: 'sticky', top: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid rgba(0,0,0,0.05)' }}>
-        <img src={product.imageUrl} alt={product.name} style={{ width:'80%', maxHeight:'80vh', objectFit:'contain', mixBlendMode: 'multiply', opacity: isOutOfStock ? 0.5 : 1 }} />
-        {isOutOfStock && <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%, -50%)', background:'rgba(255,255,255,0.9)', padding:'1rem 2rem', border:'2px solid #1a1a1a', fontSize:'1.5rem', fontWeight:'800', textTransform:'uppercase', color:'#1a1a1a' }}>Out of Stock</div>}
-      </div>
-
-      {/* RIGHT: INFO */}
-      <div className="pp-info-side" style={{ padding: '5rem 6%', background: 'var(--white)', display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 'calc(100vh - 60px)' }}>
-        <span style={{ fontSize: '0.8rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '2px', color: '#C5A059', marginBottom: '1rem' }}>{product.category?.name || 'Exclusive'}</span>
-        <h1 className="pp-title" style={{ fontSize: '3.5rem', fontWeight: '800', textTransform: 'uppercase', lineHeight: '1', marginBottom: '1rem', letterSpacing: '-1px' }}>{product.name}</h1>
-        
-        <div style={{ marginBottom: '2rem' }}>
-            <span className="pp-price" style={{ fontSize: '1.5rem', color: '#595959', fontWeight: '500', marginRight:'1rem' }}>₹{product.price.toLocaleString()}</span>
+    <div className="product-page">
+      <div className="product-layout">
+        {/* ═══════════════════════════════════════════════════════════════════
+            GALLERY
+            ═══════════════════════════════════════════════════════════════════ */}
+        <div className={`product-gallery ${isOutOfStock ? 'out-of-stock' : ''}`}>
+          <img src={product.imageUrl} alt={product.name} />
+          {isOutOfStock && (
+            <span className="stock-badge">Sold Out</span>
+          )}
         </div>
-        
-        <p className="pp-desc" style={{ lineHeight: '1.8', marginBottom: '3rem', color: '#444', fontSize: '1rem' }}>{product.description}</p>
 
-        {/* --- DYNAMIC VARIANT SELECTOR --- */}
-        {!isOutOfStock && product.hasVariations && product.variants && product.variants.length > 0 && (
-            <div style={{ marginBottom: '2rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px', display: 'block', letterSpacing:'1px' }}>
-                    Select {product.variationType}: {selectedSize && <span style={{color:'#C5A059'}}>{selectedSize}</span>}
-                </span>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    {product.variants.map(variant => (
-                        <button
-                            key={variant.value}
-                            disabled={variant.stock === 0}
-                            className={`size-btn ${selectedSize === variant.value ? 'selected' : ''} ${variant.stock === 0 ? 'disabled' : ''}`}
-                            onClick={() => { setSelectedSize(variant.value); setQuantity(1); }} // Reset qty on switch
-                        >
-                            {variant.value}
-                        </button>
-                    ))}
-                </div>
+        {/* ═══════════════════════════════════════════════════════════════════
+            DETAILS
+            ═══════════════════════════════════════════════════════════════════ */}
+        <div className="product-details">
+          <span className="product-category">{product.category?.name || 'Collection'}</span>
+          <h1 className="product-title">{product.name}</h1>
+          <p className="product-price">₹{product.price.toLocaleString('en-IN')}</p>
+          <p className="product-description">{product.description}</p>
+
+          {/* VARIANT SELECTOR */}
+          {isVariantMode && product.variants?.length > 0 && (
+            <div className="variant-section">
+              <div className="variant-label">
+                {product.variationType || 'Size'}: <span>{selectedSize}</span>
+              </div>
+              <div className="variant-options">
+                {product.variants.map((variant) => (
+                  <button
+                    key={variant.value}
+                    className={`variant-btn ${selectedSize === variant.value ? 'active' : ''} ${variant.stock === 0 ? 'disabled' : ''}`}
+                    onClick={() => variant.stock > 0 && setSelectedSize(variant.value)}
+                    disabled={variant.stock === 0}
+                    type="button"
+                  >
+                    {variant.value}
+                  </button>
+                ))}
+              </div>
             </div>
-        )}
+          )}
 
-        {/* --- ACTION BUTTONS --- */}
-        <div style={{ marginBottom: '4rem', display:'flex', alignItems:'center', gap:'2rem' }}>
-           
-           {/* Quantity Selector */}
-           <div style={{display:'flex', alignItems:'center', border:'1px solid #1a1a1a', opacity: isOutOfStock ? 0.5 : 1 }}>
-              <button onClick={() => setQuantity(q => Math.max(1, q - 1))} disabled={quantity <= 1} style={{ width:'50px', height:'50px', fontSize:'1.2rem', cursor:'pointer', background: 'transparent', border: 'none', borderRight: '1px solid #eee' }}>−</button>
-              <span style={{width:'50px', textAlign:'center', fontWeight:'700', fontSize:'1.1rem'}}>{quantity}</span>
-              <button 
-                onClick={handleIncreaseQty} 
-                style={{ width:'50px', height:'50px', fontSize:'1.2rem', cursor:'pointer', background: 'transparent', border: 'none', borderLeft: '1px solid #eee' }}
+          {/* ACTIONS */}
+          <div className="product-actions">
+            <div className="quantity-selector">
+              <button
+                className="quantity-btn"
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                disabled={quantity <= 1}
+              >
+                −
+              </button>
+              <span className="quantity-value">{quantity}</span>
+              <button
+                className="quantity-btn"
+                onClick={() => setQuantity(Math.min(quantity + 1, maxQuantity))}
+                disabled={quantity >= maxQuantity}
               >
                 +
               </button>
-           </div>
-
-           {/* ADD BUTTON */}
-           <button 
-             onClick={handleAddToCart} 
-             disabled={isOutOfStock}
-             onMouseEnter={() => setIsBtnHovered(true)}
-             onMouseLeave={() => setIsBtnHovered(false)}
-             style={{ 
-                 flex: 1, textAlign: 'center', padding: '16px',
-                 backgroundColor: isOutOfStock ? '#ccc' : (isBtnHovered ? '#000000' : '#1a1a1a'),
-                 color: '#ffffff', 
-                 cursor: isOutOfStock ? 'not-allowed' : 'pointer',
-                 border: isOutOfStock ? 'none' : '1px solid #1a1a1a',
-                 fontWeight: '700',
-                 letterSpacing: '1px',
-                 transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)',
-                 transform: isBtnHovered && !isOutOfStock ? 'translateY(-3px)' : 'none',
-                 boxShadow: isBtnHovered && !isOutOfStock ? '0 10px 20px rgba(0,0,0,0.15)' : 'none'
-             }}
-           >
-             {isOutOfStock ? 'OUT OF STOCK' : user ? 'ADD TO CART' : 'LOGIN TO BUY'}
-           </button>
-
-           {/* WISHLIST */}
-           <button onClick={handleToggleWishlist} style={{ width: '50px', height: '50px', border: '1px solid #ddd', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: isInWishlist ? '#e11d48' : '#ccc' }}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill={isInWishlist ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-           </button>
-        </div>
-
-        {/* DETAILS */}
-        <div style={{ borderTop: '1px solid #eee', paddingTop: '2rem', marginBottom: '3rem' }}>
-           <h4 style={{textTransform:'uppercase', fontWeight:'800', marginBottom:'1rem', fontSize:'0.9rem'}}>Product Details</h4>
-           <p style={{color:'#666', fontSize:'0.9rem', lineHeight:'1.7', whiteSpace: 'pre-line'}}>{product.details}</p>
-        </div>
-
-        {/* REVIEWS */}
-        <div style={{ borderTop: '1px solid #eee', paddingTop: '3rem' }}>
-             <h3 style={{ fontSize: '1.2rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '1.5rem' }}>Reviews ({product.reviews?.length || 0})</h3>
-             <div style={{ marginBottom: '3rem' }}>
-               {product.reviews?.length > 0 ? product.reviews.map((rev, i) => (
-                   <div key={rev._id || i} style={{ marginBottom: '1.5rem', paddingBottom:'1rem', borderBottom:'1px solid #f9f9f9' }}>
-                       <div style={{display:'flex', justifyContent:'space-between', marginBottom:'0.5rem'}}>
-                           <div><strong style={{textTransform:'uppercase', fontSize:'0.85rem', marginRight:'10px'}}>{rev.name || 'User'}</strong><span style={{color:'#C5A059', fontSize:'0.9rem'}}>{"★".repeat(rev.rating)}</span></div>
-                           {user && (rev.user === user._id || rev.user === user.id) && <button onClick={() => handleDeleteReview(rev._id)} style={{color:'#d63031', border:'none', background:'transparent', cursor:'pointer', fontSize:'0.75rem', fontWeight:'700'}}>DELETE</button>}
-                       </div>
-                       <p style={{color:'#666', fontSize:'0.9rem'}}>{rev.comment}</p>
-                   </div>
-               )) : <p style={{color:'#999', fontStyle:'italic'}}>No reviews yet.</p>}
-             </div>
-             {user ? (
-                <form onSubmit={submitReview} style={{ background: '#f8f8f8', padding: '2rem' }}>
-                  <h4 style={{ marginBottom: '1rem', textTransform:'uppercase', fontSize:'0.9rem' }}>Write a Review</h4>
-                  <select value={rating} onChange={(e) => setRating(Number(e.target.value))} style={{padding:'10px', width:'100%', marginBottom:'1rem', border:'1px solid #ddd'}}><option value="5">5 - Excellent</option><option value="4">4 - Very Good</option><option value="3">3 - Good</option><option value="2">2 - Fair</option><option value="1">1 - Poor</option></select>
-                  <textarea rows="3" value={reviewText} onChange={(e) => setReviewText(e.target.value)} style={{width:'100%', padding:'10px', marginBottom:'1rem', border:'1px solid #ddd'}} placeholder="Share your thoughts..." required />
-                  <button type="submit" className="btn-primary" style={{ padding: '12px 24px', fontSize: '0.8rem', fontWeight: '700', background:'#1a1a1a', color:'white', border:'none' }}>SUBMIT REVIEW</button>
-                </form>
-             ) : <div style={{background:'#f0f0f0', padding:'1.5rem', textAlign:'center', fontSize:'0.9rem'}}>Please <span onClick={()=>navigate('/login')} style={{textDecoration:'underline', cursor:'pointer', fontWeight:'bold'}}>Login</span> to write a review.</div>}
-        </div>
-      </div>
-    </div>
-    
-    {/* RELATED */}
-    {relatedProducts.length > 0 && (
-      <div style={{ padding: '5rem 6%', background: '#fff', borderTop: '1px solid #eee' }}>
-        <h3 style={{ fontSize: '1.5rem', fontWeight: '800', textTransform: 'uppercase', marginBottom: '3rem', textAlign: 'center', letterSpacing: '1px' }}>You May Also Like</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '3rem' }}>
-          {relatedProducts.map((rp) => (
-            <div key={rp._id} className="rp-card" onClick={() => navigate(`/product/${rp._id}`)}>
-              <div className="rp-img-container"><img src={rp.imageUrl} alt={rp.name} className="rp-img" /></div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: '700', textTransform: 'uppercase', marginBottom: '0.5rem', letterSpacing: '0.5px' }}>{rp.name}</h4>
-              <span style={{ fontSize: '1rem', color: '#666', fontWeight: '500', display:'block' }}>₹{rp.price.toLocaleString()}</span>
-              <span className="rp-view-btn">VIEW DETAILS</span>
             </div>
-          ))}
+
+            <button
+              className="add-to-cart-btn"
+              onClick={handleAddToCart}
+              disabled={isOutOfStock || (isVariantMode && selectedSize && variantOutOfStock)}
+            >
+              {isOutOfStock ? 'Sold Out' : (variantOutOfStock ? 'Size Sold Out' : 'Add to Bag')}
+            </button>
+
+            <button
+              className={`wishlist-btn ${isWishlisted ? 'active' : ''}`}
+              onClick={toggleWishlist}
+              aria-label="Toggle Wishlist"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill={isWishlisted ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+            </button>
+          </div>
+
+          {/* ACCORDION DETAILS */}
+          <div style={{ borderTop: 'var(--border-subtle)', marginTop: 'var(--space-xl)' }}>
+            {['details', 'shipping', 'returns'].map((section) => (
+              <div key={section} style={{ borderBottom: 'var(--border-subtle)' }}>
+                <button
+                  onClick={() => setOpenSection(openSection === section ? '' : section)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: 'var(--space-lg) 0',
+                    color: 'var(--ivory)',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase'
+                  }}
+                >
+                  {section === 'details' && 'Product Details'}
+                  {section === 'shipping' && 'Shipping & Delivery'}
+                  {section === 'returns' && 'Returns & Exchanges'}
+                  <span style={{
+                    transition: 'transform 0.3s',
+                    transform: openSection === section ? 'rotate(45deg)' : 'rotate(0)'
+                  }}>+</span>
+                </button>
+                {openSection === section && (
+                  <div style={{
+                    paddingBottom: 'var(--space-lg)',
+                    color: 'var(--fog)',
+                    fontSize: '0.9rem',
+                    lineHeight: '1.8'
+                  }}>
+                    {section === 'details' && (
+                      <div className="product-details-content">
+                        <p>{product.details || product.description}</p>
+                        <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: 'var(--stone)' }}>
+                          SKU: {product._id?.slice(-8).toUpperCase()}
+                        </div>
+                      </div>
+                    )}
+                    {section === 'shipping' && (
+                      <p>Complimentary shipping on orders over ₹5,000. Standard delivery: 5-7 business days.</p>
+                    )}
+                    {section === 'returns' && (
+                      <p>Free returns within 14 days. Items must be unworn with original tags.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
-    )}
-    </>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          REVIEWS
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <section className="section">
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <h2 className="display-md" style={{ marginBottom: 'var(--space-2xl)', textAlign: 'center' }}>
+            Reviews
+          </h2>
+
+          {reviews.length === 0 ? (
+            <p style={{ textAlign: 'center', color: 'var(--fog)' }}>No reviews yet.</p>
+          ) : (
+            <div style={{ marginBottom: 'var(--space-3xl)' }}>
+              {reviews.map((review) => (
+                <div key={review._id} className="review-item">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+                    <span style={{ color: 'var(--ivory)', fontWeight: '500' }}>{review.name}</span>
+                    <span style={{ color: 'var(--gold)' }}>{'★'.repeat(review.rating)}</span>
+                  </div>
+                  <p style={{ color: 'var(--fog)', lineHeight: '1.7' }}>{review.comment}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Review Form (Authenticated Only) */}
+          {user && (
+            <form onSubmit={handleReviewSubmit} style={{
+              background: 'var(--charcoal)',
+              padding: 'var(--space-2xl)',
+              border: 'var(--border-subtle)'
+            }}>
+              <h3 className="heading-sm" style={{ marginBottom: 'var(--space-lg)' }}>
+                Write a Review
+              </h3>
+
+              <div className="form-group">
+                <label className="form-label">Rating</label>
+                <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      style={{
+                        fontSize: '1.5rem',
+                        color: star <= rating ? 'var(--gold)' : 'var(--iron)',
+                        transition: 'color 0.2s'
+                      }}
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Comment</label>
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  rows="4"
+                  className="form-input"
+                  placeholder="Share your thoughts..."
+                  required
+                />
+              </div>
+
+              <button type="submit" className="submit-btn">
+                <span>Submit Review</span>
+              </button>
+            </form>
+          )}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          RELATED PRODUCTS
+          ═══════════════════════════════════════════════════════════════════════ */}
+      {relatedProducts.length > 0 && (
+        <section className="section section-dark">
+          <div className="section-header">
+            <span className="section-eyebrow">You May Also Like</span>
+            <h2 className="section-title">Related Products</h2>
+          </div>
+
+          <div className="product-grid" style={{ maxWidth: '1200px', margin: '0 auto' }}>
+            {relatedProducts.slice(0, 3).map((prod) => (
+              <Link key={prod._id} to={`/product/${prod._id}`} className="product-card">
+                <div className="product-card-image">
+                  <img src={prod.imageUrl} alt={prod.name} />
+                </div>
+                <div className="product-card-body">
+                  <h3 className="product-card-name">{prod.name}</h3>
+                  <p className="product-card-price">₹{prod.price.toLocaleString('en-IN')}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
   );
 };
 

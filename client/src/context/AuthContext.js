@@ -1,7 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
-import API_BASE_URL from "../api";
 
 const AuthContext = createContext();
 
@@ -39,8 +38,7 @@ const AuthProvider = ({ children }) => {
     if (token) {
       const fetchCart = async () => {
         try {
-          const res = await axios.get(`${API_BASE_URL}/api/cart`);
-
+          const res = await axios.get('http://localhost:5000/api/cart');
           setCart(res.data);
         } catch (err) { 
           console.error('Error fetching cart:', err); 
@@ -64,8 +62,7 @@ const AuthProvider = ({ children }) => {
     }
 
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/cart`);
-
+      const res = await axios.get('http://localhost:5000/api/cart');
       setCart(res.data);
     } catch (err) { console.error('Error fetching cart on login:', err); }
   };
@@ -85,8 +82,7 @@ const AuthProvider = ({ children }) => {
   const addToCart = async (productId, quantity, size) => {
     // Validation is handled by the UI component (ProductPage), not here.
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/cart/add`, { productId, quantity, size });
-
+      const res = await axios.post('http://localhost:5000/api/cart/add', { productId, quantity, size });
       setCart(res.data);
     } catch (err) {
       console.error('Error adding to cart:', err);
@@ -96,8 +92,7 @@ const AuthProvider = ({ children }) => {
   // 2. Remove
   const removeFromCart = async (productId, size) => {
     try {
-      const res = await axios.delete(`${API_BASE_URL}/api/cart/${productId}`, {
-
+      const res = await axios.delete(`http://localhost:5000/api/cart/${productId}`, {
           data: { size } 
       });
       setCart(res.data);
@@ -107,8 +102,7 @@ const AuthProvider = ({ children }) => {
   // 3. Update
   const updateCartQuantity = async (productId, newQuantity, size) => {
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/cart/update`, { productId, newQuantity, size });
-
+      const res = await axios.post('http://localhost:5000/api/cart/update', { productId, newQuantity, size });
       setCart(res.data);
     } catch (err) {
       console.error('Error updating quantity:', err);

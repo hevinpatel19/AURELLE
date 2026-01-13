@@ -1,468 +1,626 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useContext, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { AuthContext } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import API_BASE_URL from "../api";
-
 
 const CartPage = () => {
-  // These functions now accept (productId, ..., size)
-  const { cart, removeFromCart, updateCartQuantity } = useAuth();
+  const { cart, removeFromCart, updateCartQuantity, isAuthenticated } = useContext(AuthContext);
   const navigate = useNavigate();
 
-  // --- COUPON STATE ---
+  // Coupon state
   const [couponCode, setCouponCode] = useState('');
-  const [discountPercent, setDiscountPercent] = useState(0);
-  const [isCouponApplied, setIsCouponApplied] = useState(false);
-  const [appliedCodeName, setAppliedCodeName] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState('');
+  const [applyingCoupon, setApplyingCoupon] = useState(false);
 
-  // --- CALCULATIONS ---
-  const subtotal = cart.reduce((acc, item) => acc + (item.product?.price || 0) * item.quantity, 0);
-  const discountAmount = (subtotal * discountPercent) / 100;
-  const finalTotal = subtotal - discountAmount;
+  // Animation state for removed items
+  const [removingItem, setRemovingItem] = useState(null);
 
-  // --- HANDLERS ---
+  // Safe cart array
+  const cartItems = Array.isArray(cart) ? cart : [];
+
+  // Safe price getter
+  const getItemPrice = (item) => {
+    if (!item?.product) return 0;
+    return typeof item.product.price === 'number' ? item.product.price : 0;
+  };
+
+  // Safe image getter
+  const getItemImage = (item) => {
+    const url = item?.product?.imageUrl;
+    return (url && typeof url === 'string' && url.trim() !== '') ? url : null;
+  };
+
+  // Calculate subtotal
+  const calculateSubtotal = () => {
+    return cartItems.reduce((acc, item) => {
+      const price = getItemPrice(item);
+      const quantity = item?.quantity ?? 0;
+      return acc + (price * quantity);
+    }, 0);
+  };
+
+  // Calculate discount
+  const calculateDiscount = () => {
+    if (!appliedCoupon) return 0;
+    const subtotal = calculateSubtotal();
+    // API returns discountPercentage
+    if (appliedCoupon.discountPercentage) {
+      return Math.round(subtotal * (appliedCoupon.discountPercentage / 100));
+    }
+    return 0;
+  };
+
+  // Calculate total
+  const calculateTotal = () => {
+    return Math.max(0, calculateSubtotal() - calculateDiscount());
+  };
+
+  // Handle coupon apply - REAL API CALL
   const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) return toast.error("Enter a code");
-    try {
-      const { data } = await axios.post(`${API_BASE_URL}/api/coupons/validate`, { couponCode });
+    if (!couponCode.trim()) {
+      setCouponError('Please enter a coupon code');
+      return;
+    }
 
-      setDiscountPercent(data.discountPercentage);
-      setAppliedCodeName(data.code);
-      setIsCouponApplied(true);
-      toast.success(`Code ${data.code} applied!`);
+    setApplyingCoupon(true);
+    setCouponError('');
+
+    try {
+      // Call backend API
+      const { data } = await axios.post('http://localhost:5000/api/coupons/validate', {
+        couponCode: couponCode.trim()
+      });
+
+      if (data) {
+        setAppliedCoupon({
+          code: data.code,
+          discountPercentage: data.discountPercentage,
+          label: `${data.discountPercentage}% OFF`
+        });
+        setCouponCode('');
+        toast.success(`Coupon applied: ${data.discountPercentage}% OFF`);
+      }
     } catch (error) {
-      setDiscountPercent(0);
-      setIsCouponApplied(false);
-      toast.error(error.response?.data?.message || "Invalid Coupon");
+      console.error(error);
+      const msg = error.response?.data?.message || 'Invalid coupon code';
+      setCouponError(msg);
+      toast.error(msg);
+    } finally {
+      setApplyingCoupon(false);
     }
   };
 
+  // Remove coupon
   const handleRemoveCoupon = () => {
-    setCouponCode('');
-    setDiscountPercent(0);
-    setIsCouponApplied(false);
-    setAppliedCodeName('');
-    toast.success("Coupon removed");
+    setAppliedCoupon(null);
+    toast.success('Coupon removed');
   };
 
-  const handleCheckoutClick = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) { navigate('/login'); return; }
-      
-      const { data } = await axios.get(`${API_BASE_URL}/api/users/profile`, {
+  // Handle quantity change
+  const handleQuantityChange = (productId, size, newQuantity) => {
+    if (newQuantity < 1) return;
+    updateCartQuantity(productId, newQuantity, size);
+  };
 
-        headers: { Authorization: `Bearer ${token}` }
-      });
+  // Handle remove with animation
+  const handleRemoveItem = (productId, size) => {
+    setRemovingItem(`${productId}-${size}`);
+    setTimeout(() => {
+      removeFromCart(productId, size);
+      setRemovingItem(null);
+      toast.success('Removed from bag');
+    }, 300);
+  };
 
-      if (!data.address || !data.city || !data.phone) {
-        navigate('/profile', { state: { fromCart: true } });
-      } else {
-        navigate('/checkout', { 
-            state: { discountPercent: discountPercent, couponCode: isCouponApplied ? appliedCodeName : null } 
-        });
+  // Checkout navigation
+  const handleCheckout = () => {
+    if (!isAuthenticated) {
+      toast.error('Please login to continue');
+      return navigate('/login');
+    }
+    navigate('/checkout', {
+      state: {
+        appliedCoupon,
+        discountedTotal: calculateTotal()
       }
-    } catch (error) { navigate('/login'); }
+    });
   };
+
+  // Inline styles for animations
+  const itemStyle = (productId, size) => ({
+    opacity: removingItem === `${productId}-${size}` ? 0 : 1,
+    transform: removingItem === `${productId}-${size}` ? 'translateX(-20px)' : 'translateX(0)',
+    transition: 'all 0.3s cubic-bezier(0.19, 1, 0.22, 1)'
+  });
 
   return (
-    <div className="cart-container">
-      
-      <style>{`
-        /* PAGE LAYOUT */
-        .cart-container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 80px 50px; 
-            font-family: 'Manrope', sans-serif;
-        }
-
-        /* HEADER */
-        .page-title { 
-            font-size: 2.5rem; 
-            font-weight: 800;
-            margin-top: 20px;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: -1px; 
-            line-height: 1.1; } 
-            
-        .page-subtitle { 
-            color: #666; 
-            margin-top: 0;
-            margin-bottom: 40px; 
-            font-size: 1rem; } 
-            
-        /* TABLE HEADERS */ 
-        .cart-header-row { 
-            display: flex; 
-            justify-content: space-between; 
-            border-bottom: 1px solid #000; 
-            padding-bottom: 15px; 
-            margin-bottom: 20px; 
-            font-weight: 700; 
-            font-size: 0.8rem; 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            color: #000; }
-
-        /* CART ITEM ROW */
-        .cart-row {
-            display: flex;
-            align-items: flex-start;
-            padding: 30px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .product-image {
-            width: 100px;
-            aspect-ratio: 3/4;
-            object-fit: cover;
-            background: #f4f4f5;
-            margin-right: 30px;
-        }
-
-        .product-info {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100%;
-        }
-
-        .product-name {
-            font-size: 1rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            margin-bottom: 15px;
-            color: #000;
-            letter-spacing: 0.5px;
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        /* SIZE BADGE STYLE */
-        .size-badge {
-            background: #f0f0f0;
-            color: #333;
-            font-size: 0.7rem;
-            padding: 2px 8px;
-            border-radius: 4px;
-            border: 1px solid #ddd;
-            font-weight: 700;
-        }
-
-        /* QUANTITY BUTTONS */
-        .qty-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .qty-btn {
-            width: 35px;
-            height: 35px;
-            border: 1px solid #e5e5e5;
-            background: #fff;
-            color: #000;
-            font-size: 1.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .qty-btn:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-        }
-
-        .qty-btn:not(:disabled):hover {
-            background: #000;
-            color: #fff;
-            border-color: #000;
-        }
-
-        .qty-value {
-            font-family: monospace;
-            font-weight: 700;
-            font-size: 1rem;
-            min-width: 20px;
-            text-align: center;
-        }
-
-        /* PRICE & REMOVE SECTION */
-        .price-section {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            padding-top: 5px;
-        }
-
-        .price-text {
-            font-family: monospace;
-            font-weight: 700;
-            font-size: 1.1rem;
-            color: #000;
-        }
-
-        .remove-btn {
-            background: none;
-            border: none;
-            font-size: 1.5rem;
-            color: #9ca3af;
-            cursor: pointer;
-            line-height: 1;
-            padding: 0 5px;
-            transition: color 0.2s;
-        }
-        .remove-btn:hover {
-            color: #000;
-        }
-
-        /* SUMMARY & COUPON SECTION */
-        .bottom-section {
-            margin-top: 3rem;
-            display: flex;
-            justify-content: flex-end;
-        }
-
-        .summary-box {
-            width: 100%;
-            max-width: 400px;
-        }
-
-        .coupon-box {
-            margin-bottom: 2rem;
-            padding-bottom: 2rem;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .coupon-label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            color: #666;
-            margin-bottom: 10px;
-            display: block;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-        }
-        
-        .input-field {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #e5e5e5;
-            border-radius: 0;
-            font-size: 0.9rem;
-            outline: none;
-        }
-        
-        /* APPLY BUTTON WITH ANIMATION */
-        .apply-btn {
-            background: #000;
-            color: white;
-            border: none;
-            padding: 0 25px;
-            font-weight: 700;
-            font-size: 0.85rem;
-            cursor: pointer;
-            text-transform: uppercase;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-        .apply-btn:hover { 
-            background: #000;
-            transform: translateY(-2px); 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
-        }
-
-        .summary-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-            color: #555;
-        }
-
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e5e5;
-            font-size: 1.1rem;
-            font-weight: 800;
-            color: #000;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* CHECKOUT BUTTON WITH ANIMATION */
-        .checkout-btn {
-            display: block;
-            width: 100%;
-            background: #000;
-            color: white;
-            padding: 18px;
-            margin-top: 25px;
-            border: none;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-        }
-        .checkout-btn:hover {
-            background: #000;
-            transform: translateY(-3px); 
-            box-shadow: 0 10px 20px rgba(0,0,0,0.15); 
-        }
-      `}</style>
-
-      {/* HEADER */}
-      <h1 className="page-title">Shopping Bag</h1>
-      <p className="page-subtitle">Check your items before proceeding.</p>
-      
-      {cart.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'6rem 2rem', background:'#f9f9f9', borderRadius:'8px' }}>
-           <h3 style={{ textTransform:'uppercase', fontSize:'1.5rem', marginBottom:'1.5rem' }}>Your Bag is Empty</h3>
-           <Link to="/" style={{ textDecoration:'underline', fontWeight:'700', color:'black' }}>
-             Continue Shopping
-           </Link>
+    <div className="cart-page">
+      <div className="cart-container" style={{ maxWidth: '1200px' }}>
+        {/* Header */}
+        <div className="cart-header">
+          <h1 className="cart-title">Your Bag</h1>
+          <p className="cart-count">
+            {cartItems.length} {cartItems.length === 1 ? 'item' : 'items'}
+          </p>
         </div>
-      ) : (
-        <div>
-          {/* TABLE HEADER */}
-          <div className="cart-header-row">
-            <span>Product Details</span>
-            <span>Total</span>
+
+        {cartItems.length === 0 ? (
+          <div className="cart-empty">
+            <h2>Nothing here yet</h2>
+            <p>Your bag is waiting to be filled with exceptional pieces.</p>
+            <Link to="/" className="btn-primary" style={{ marginTop: 'var(--space-xl)' }}>
+              <span>Start Shopping</span>
+            </Link>
           </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 360px',
+            gap: 'var(--space-3xl)',
+            alignItems: 'start'
+          }} className="cart-layout">
 
-          {/* CART ITEMS */}
-          {cart.map((item) => {
-             if (!item.product) return null;
-             
-             const maxStock = item.product.countInStock || 0;
-             // --- FIX: Create a unique key using ID + Size ---
-             const uniqueKey = `${item.product._id}-${item.size}`;
+            {/* Cart Items */}
+            <div className="cart-items">
+              {cartItems.map((item, index) => {
+                const product = item?.product || {};
+                const productId = product._id;
+                const productName = product.name || 'Product';
+                const imageUrl = getItemImage(item);
+                const itemPrice = getItemPrice(item);
+                const quantity = item?.quantity ?? 1;
+                const size = item?.size || null;
+                const lineTotal = itemPrice * quantity;
 
-             return (
-              <div key={uniqueKey} className="cart-row">
-                {/* Left: Image */}
-                <img src={item.product.imageUrl} alt={item.product.name} className="product-image" />
-                
-                {/* Middle: Name, Size & Qty */}
-                <div className="product-info">
-                  <div className="product-name">
-                    {item.product.name}
-                    {/* --- FIX: Display Size --- */}
-                    {item.size && <span className="size-badge">SIZE: {item.size}</span>}
-                  </div>
-                  
-                  <div className="qty-wrapper">
-                    <button 
-                        className="qty-btn" 
-                        // --- FIX: Pass item.size to update quantity ---
-                        onClick={() => updateCartQuantity(item.product._id, item.quantity - 1, item.size)} 
-                        disabled={item.quantity <= 1}
+                return (
+                  <div
+                    key={`${productId || index}-${size || ''}-${index}`}
+                    style={{
+                      ...itemStyle(productId, size),
+                      display: 'grid',
+                      gridTemplateColumns: '100px 1fr',
+                      gap: 'var(--space-lg)',
+                      padding: 'var(--space-lg) 0',
+                      borderBottom: 'var(--border-subtle)'
+                    }}
+                    className="cart-item-row"
+                  >
+                    {/* Product Image */}
+                    <Link
+                      to={`/product/${productId}`}
+                      style={{
+                        width: '100px',
+                        height: '130px',
+                        background: 'var(--charcoal)',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        position: 'relative'
+                      }}
+                      className="cart-item-image-link"
                     >
-                        −
-                    </button>
-                    
-                    <span className="qty-value">{item.quantity}</span>
-                    
-                    <button 
-                        className="qty-btn" 
-                        onClick={() => {
-                            if (item.quantity >= maxStock) {
-                                toast.error(`Only ${maxStock} items available in stock!`);
-                            } else {
-                                // --- FIX: Pass item.size to update quantity ---
-                                updateCartQuantity(item.product._id, item.quantity + 1, item.size);
-                            }
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={productName}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            transition: 'transform 0.5s ease'
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'var(--stone)',
+                          fontSize: '0.55rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.1em'
+                        }}>
+                          No Image
+                        </div>
+                      )}
+                    </Link>
+
+                    {/* Product Details */}
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', minHeight: '130px' }}>
+                      {/* Top: Name, Size, Remove */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <Link
+                            to={`/product/${productId}`}
+                            style={{
+                              fontSize: '0.85rem',
+                              fontWeight: '500',
+                              letterSpacing: '0.05em',
+                              textTransform: 'uppercase',
+                              color: 'var(--ivory)',
+                              textDecoration: 'none',
+                              transition: 'color 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--gold)'}
+                            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--ivory)'}
+                          >
+                            {productName}
+                          </Link>
+                          {size && (
+                            <p style={{
+                              fontSize: '0.75rem',
+                              color: 'var(--fog)',
+                              marginTop: 'var(--space-2xs)'
+                            }}>
+                              Size: <span style={{ color: 'var(--mist)' }}>{size}</span>
+                            </p>
+                          )}
+                          <p style={{
+                            fontSize: '0.8rem',
+                            color: 'var(--fog)',
+                            marginTop: 'var(--space-xs)'
+                          }}>
+                            ₹{itemPrice.toLocaleString('en-IN')}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleRemoveItem(productId, size)}
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: 'transparent',
+                            border: 'none',
+                            color: 'var(--stone)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.color = 'var(--burgundy)';
+                            e.currentTarget.style.background = 'rgba(114, 47, 55, 0.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.color = 'var(--stone)';
+                            e.currentTarget.style.background = 'transparent';
+                          }}
+                          aria-label="Remove item"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Bottom: Quantity & Total */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        {/* Quantity Controls */}
+                        <div style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          background: 'var(--slate)',
+                          border: 'var(--border-subtle)',
+                          transition: 'border-color 0.2s',
+                          position: 'relative',
+                          zIndex: 2
                         }}
-                        disabled={item.quantity >= maxStock}
+                          className="quantity-wrapper"
+                        >
+                          <button
+                            onClick={() => handleQuantityChange(productId, size, quantity - 1)}
+                            disabled={quantity <= 1}
+                            style={{
+                              width: '34px',
+                              height: '34px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'transparent',
+                              border: 'none',
+                              color: quantity <= 1 ? 'var(--iron)' : 'var(--mist)',
+                              cursor: quantity <= 1 ? 'not-allowed' : 'pointer',
+                              fontSize: '1rem',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            −
+                          </button>
+                          <span style={{
+                            width: '32px',
+                            textAlign: 'center',
+                            fontWeight: '600',
+                            color: 'var(--ivory)',
+                            fontSize: '0.85rem'
+                          }}>
+                            {quantity}
+                          </span>
+                          <button
+                            onClick={() => handleQuantityChange(productId, size, quantity + 1)}
+                            style={{
+                              width: '34px',
+                              height: '34px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: 'transparent',
+                              border: 'none',
+                              color: 'var(--mist)',
+                              cursor: 'pointer',
+                              fontSize: '1rem',
+                              transition: 'all 0.15s'
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {/* Line Total */}
+                        <div style={{
+                          fontSize: '0.95rem',
+                          fontWeight: '600',
+                          color: 'var(--gold)'
+                        }}>
+                          ₹{lineTotal.toLocaleString('en-IN')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Order Summary Sidebar */}
+            <div style={{
+              background: 'var(--charcoal)',
+              border: 'var(--border-subtle)',
+              padding: 'var(--space-xl)',
+              position: 'sticky',
+              top: '100px'
+            }} className="cart-summary-sidebar">
+              <h3 style={{
+                fontSize: '0.7rem',
+                fontWeight: '600',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                color: 'var(--fog)',
+                marginBottom: 'var(--space-lg)',
+                paddingBottom: 'var(--space-sm)',
+                borderBottom: 'var(--border-subtle)'
+              }}>
+                Order Summary
+              </h3>
+
+              {/* Coupon Section */}
+              <div style={{ marginBottom: 'var(--space-lg)' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.65rem',
+                  fontWeight: '600',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--mist)',
+                  marginBottom: 'var(--space-xs)'
+                }}>
+                  Promo Code
+                </label>
+
+                {appliedCoupon ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    background: 'var(--gold-glow)',
+                    border: '1px solid var(--gold)',
+                    padding: 'var(--space-sm) var(--space-md)',
+                    transition: 'all 0.3s'
+                  }}>
+                    <div>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--gold)', fontWeight: '600' }}>
+                        {appliedCoupon.code}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--fog)', marginLeft: 'var(--space-xs)' }}>
+                        ({appliedCoupon.label})
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleRemoveCoupon}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--mist)',
+                        cursor: 'pointer',
+                        fontSize: '0.7rem',
+                        textDecoration: 'underline'
+                      }}
                     >
-                        +
+                      Remove
                     </button>
                   </div>
-                </div>
-                
-                {/* Right: Price & X Button */}
-                <div className="price-section">
-                  <span className="price-text">₹{(item.product.price * item.quantity).toLocaleString()}</span>
-                  
-                  {/* --- FIX: Pass item.size to remove item --- */}
-                  <button className="remove-btn" onClick={() => removeFromCart(item.product._id, item.size)}>
-                    &times;
-                  </button>
-                </div>
-              </div>
-             );
-          })}
-
-          {/* FOOTER SECTION */}
-          <div className="bottom-section">
-            <div className="summary-box">
-                
-                {/* COUPON AREA */}
-                <div className="coupon-box">
-                    <label className="coupon-label">Have a Coupon?</label>
-                    {!isCouponApplied ? (
-                        <div className="input-group">
-                            <input 
-                                type="text" 
-                                className="input-field"
-                                value={couponCode} 
-                                onChange={(e) => setCouponCode(e.target.value)} 
-                                placeholder="Enter Code" 
-                            />
-                            <button className="apply-btn" onClick={handleApplyCoupon}>Apply</button>
-                        </div>
-                    ) : (
-                        <div style={{ background:'#ecfdf5', padding:'12px', display:'flex', justifyContent:'space-between', alignItems:'center', border:'1px solid #a7f3d0' }}>
-                            <span style={{ color:'#047857', fontWeight:'bold', fontSize:'0.85rem', textTransform:'uppercase' }}>
-                                {appliedCodeName} Applied!
-                            </span>
-                            <button onClick={handleRemoveCoupon} style={{ background:'none', border:'none', color:'#b91c1c', cursor:'pointer', fontSize:'1.2rem', lineHeight:1 }}>&times;</button>
-                        </div>
-                    )}
-                </div>
-
-                {/* TOTALS AREA */}
-                <div className="summary-row">
-                    <span>Subtotal</span>
-                    <span style={{ fontFamily:'monospace', fontWeight:'600' }}>₹{subtotal.toLocaleString()}</span>
-                </div>
-
-                {isCouponApplied && (
-                    <div className="summary-row" style={{ color:'#047857' }}>
-                        <span>Discount ({discountPercent}%)</span>
-                        <span style={{ fontFamily:'monospace', fontWeight:'600' }}>- ₹{discountAmount.toLocaleString()}</span>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input
+                        type="text"
+                        value={couponCode}
+                        onChange={(e) => {
+                          setCouponCode(e.target.value);
+                          setCouponError('');
+                        }}
+                        onKeyPress={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                        placeholder="Enter code"
+                        style={{
+                          flex: 1,
+                          padding: 'var(--space-sm) var(--space-md)',
+                          background: 'var(--slate)',
+                          border: couponError ? '1px solid var(--burgundy)' : 'var(--border-subtle)',
+                          color: 'var(--ivory)',
+                          fontSize: '0.8rem',
+                          outline: 'none',
+                          transition: 'border-color 0.2s'
+                        }}
+                      />
+                      <button
+                        onClick={handleApplyCoupon}
+                        disabled={applyingCoupon}
+                        style={{
+                          padding: 'var(--space-sm) var(--space-md)',
+                          background: 'var(--slate)',
+                          border: 'var(--border-light)',
+                          color: 'var(--ivory)',
+                          fontSize: '0.65rem',
+                          fontWeight: '600',
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {applyingCoupon ? '...' : 'Apply'}
+                      </button>
                     </div>
+                    {couponError && (
+                      <p style={{
+                        fontSize: '0.7rem',
+                        color: 'var(--burgundy)',
+                        marginTop: 'var(--space-2xs)',
+                        transition: 'all 0.2s'
+                      }}>
+                        {couponError}
+                      </p>
+                    )}
+                  </>
                 )}
+              </div>
 
-                <div className="total-row">
-                    <span>Total</span>
-                    <span style={{ fontFamily:'monospace' }}>₹{finalTotal.toLocaleString()}</span>
+              {/* Price Breakdown - NO SHIPPING LINE */}
+              <div style={{ borderTop: 'var(--border-subtle)', paddingTop: 'var(--space-md)' }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: 'var(--space-xs)',
+                  fontSize: '0.85rem'
+                }}>
+                  <span style={{ color: 'var(--fog)' }}>Subtotal</span>
+                  <span style={{ color: 'var(--mist)' }}>₹{calculateSubtotal().toLocaleString('en-IN')}</span>
                 </div>
-                
-                <button onClick={handleCheckoutClick} className="checkout-btn">
-                    Checkout Now
-                </button>
+
+                {appliedCoupon && (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: 'var(--space-xs)',
+                    fontSize: '0.85rem'
+                  }}>
+                    <span style={{ color: 'var(--fog)' }}>Discount</span>
+                    <span style={{ color: 'var(--gold)' }}>−₹{calculateDiscount().toLocaleString('en-IN')}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Total */}
+              <div style={{
+                borderTop: 'var(--border-light)',
+                marginTop: 'var(--space-md)',
+                paddingTop: 'var(--space-md)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline'
+              }}>
+                <span style={{
+                  fontSize: '0.7rem',
+                  fontWeight: '600',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--fog)'
+                }}>
+                  Total
+                </span>
+                <span style={{
+                  fontFamily: 'var(--font-display)',
+                  fontSize: '1.75rem',
+                  fontWeight: '400',
+                  color: 'var(--gold)',
+                  transition: 'all 0.3s'
+                }}>
+                  ₹{calculateTotal().toLocaleString('en-IN')}
+                </span>
+              </div>
+
+              {/* Checkout Button */}
+              <button
+                onClick={handleCheckout}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  marginTop: 'var(--space-lg)',
+                  padding: 'var(--space-md)',
+                  fontSize: '0.7rem'
+                }}
+              >
+                <span>Proceed to Checkout</span>
+              </button>
+
+              {/* Continue Shopping */}
+              <Link
+                to="/"
+                style={{
+                  display: 'block',
+                  textAlign: 'center',
+                  marginTop: 'var(--space-md)',
+                  fontSize: '0.7rem',
+                  color: 'var(--fog)',
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                  transition: 'color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = 'var(--mist)'}
+                onMouseLeave={(e) => e.currentTarget.style.color = 'var(--fog)'}
+              >
+                Continue Shopping
+              </Link>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Responsive Styles */}
+      <style>{`
+        @media (max-width: 900px) {
+          .cart-layout {
+            grid-template-columns: 1fr !important;
+            gap: var(--space-2xl) !important;
+          }
+          .cart-summary-sidebar {
+            position: relative !important;
+            top: 0 !important;
+          }
+        }
+        @media (max-width: 600px) {
+          .cart-item-row {
+            grid-template-columns: 80px 1fr !important;
+            gap: var(--space-md) !important;
+            min-height: auto;
+          }
+          .cart-item-image-link {
+            width: 80px !important;
+            height: 100px !important;
+          }
+        }
+        .cart-item-image-link:hover img {
+          transform: scale(1.05);
+        }
+        .quantity-wrapper:hover {
+          border-color: var(--border-light) !important;
+        }
+      `}</style>
     </div>
   );
 };
