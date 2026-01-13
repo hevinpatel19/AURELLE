@@ -113,13 +113,13 @@ const Navbar = () => {
 
           {/* Desktop Logo */}
           <div className="navbar-logo desktop-only">
-            <Link to="/">NOIR</Link>
+            <Link to="/">AURELLÉ</Link>
           </div>
         </div>
 
         {/* 2. CENTER: LOGO (Mobile Only) */}
         <div className="nav-center mobile-only">
-          <Link to="/" className="mobile-logo">NOIR</Link>
+          <Link to="/" className="mobile-logo">AURELLÉ</Link>
         </div>
 
         {/* 3. RIGHT: ACTIONS & HAMBURGER (Desktop) */}
@@ -309,7 +309,7 @@ const Navbar = () => {
           </div>
 
           <div className="menu-footer">
-            <p>© 2026 NOIR</p>
+            <p>© 2026 AURELLÉ</p>
           </div>
         </div>
       </div>

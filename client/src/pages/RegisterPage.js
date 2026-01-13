@@ -18,7 +18,7 @@ const RegisterPage = () => {
       const { data } = await axios.post(`${API_BASE_URL}/api/auth/register`, formData);
       if (data.token) {
         login(data.token);
-        toast.success('Welcome to NOIR');
+        toast.success('Welcome to AURELLÉ');
         navigate('/');
       }
     } catch (err) {

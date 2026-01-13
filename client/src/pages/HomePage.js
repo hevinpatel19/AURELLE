@@ -3,6 +3,28 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import API_BASE_URL from '../api';
 
+// Category image mapping - AI-generated ultra-premium luxury editorial images
+const CATEGORY_IMAGES = {
+  // Men: Editorial male model in tailored suit, cinematic lighting
+  men: '/images/category_men.png',
+  // Women: High-fashion female model, elegant Vogue-style editorial
+  women: '/images/category_women.png',
+  // Accessories: Luxury flat-lay with watch, leather goods, jewelry
+  accessories: '/images/category_accessories.png',
+  // Footwear: Designer boots and oxfords, dramatic product photography
+  footwear: '/images/category_footwear.png',
+  shoes: '/images/category_footwear.png',
+  // Fallback: Luxury fashion editorial (external backup)
+  default: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1200&q=85&auto=format&fit=crop'
+};
+
+// Get category image with fallback
+const getCategoryImage = (categoryName) => {
+  if (!categoryName) return CATEGORY_IMAGES.default;
+  const key = categoryName.toLowerCase().trim();
+  return CATEGORY_IMAGES[key] || CATEGORY_IMAGES.default;
+};
+
 const HomePage = () => {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -91,20 +113,21 @@ const HomePage = () => {
             >
               {/* Background Image */}
               <img
-                src={[
-                  "/images/cat_men.png",
-                  "/images/cat_women.png",
-                  "/images/cat_acc.png",
-                  "/images/cat_shoes.png"
-                ][index]}
+                src={getCategoryImage(cat.name)}
                 alt={cat.name}
+                loading="lazy"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = CATEGORY_IMAGES.default;
+                }}
                 style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
+                  objectPosition: 'center',
                   transition: 'transform 1.4s cubic-bezier(0.19, 1, 0.22, 1), opacity 0.5s',
-                  opacity: 0.6,
-                  filter: 'brightness(1.1) contrast(1.02)' // Visual Polish
+                  opacity: 0.7,
+                  filter: 'brightness(1.05) contrast(1.05)'
                 }}
                 className="category-img"
               />
@@ -378,7 +401,7 @@ const HomePage = () => {
       <footer className="footer">
         <div className="footer-grid">
           <div>
-            <div className="footer-brand">NOIR</div>
+            <div className="footer-brand">AURELLÉ</div>
             <p className="footer-desc">
               A dark luxury experience for those who understand that
               true sophistication lies in the shadows.
@@ -418,7 +441,7 @@ const HomePage = () => {
         </div>
 
         <div className="footer-bottom">
-          © 2026 NOIR. All rights reserved.
+          © 2026 AURELLÉ. All rights reserved.
         </div>
       </footer>
     </>
