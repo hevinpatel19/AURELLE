@@ -87,88 +87,108 @@ const addOrderItems = async (req, res) => {
 
 // 2. Get Logged In User Orders
 const getMyOrders = async (req, res) => {
-  const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
-  res.json(orders);
+  try {
+    const orders = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
 };
 
 // 3. Get All Orders (Admin)
 const getOrders = async (req, res) => {
-  const orders = await Order.find({}).populate('user', 'id name').sort({ createdAt: -1 });
-  res.json(orders);
+  try {
+    const orders = await Order.find({}).populate('user', 'id name').sort({ createdAt: -1 });
+    res.json(orders);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
 };
 
 // 4. Update Order Status (Admin)
 const updateOrderStatus = async (req, res) => {
-  const order = await Order.findById(req.params.id);
+  try {
+    const order = await Order.findById(req.params.id);
 
-  if (order) {
-    order.status = req.body.status || order.status;
-    
-    if (order.status === 'Shipped') {
-        order.shippedAt = Date.now();
-    }
-    if (order.status === 'Delivered') {
-        order.deliveredAt = Date.now();
-    }
+    if (order) {
+      order.status = req.body.status || order.status;
+      
+      if (order.status === 'Shipped') {
+          order.shippedAt = Date.now();
+      }
+      if (order.status === 'Delivered') {
+          order.deliveredAt = Date.now();
+      }
 
-    if (order.paymentMethod === 'COD' && order.status === 'Delivered') {
-        order.isPaid = true;
-        order.paidAt = Date.now();
-    }
+      if (order.paymentMethod === 'COD' && order.status === 'Delivered') {
+          order.isPaid = true;
+          order.paidAt = Date.now();
+      }
 
-    const updatedOrder = await order.save();
-    res.json(updatedOrder);
-  } else {
-    res.status(404);
-    throw new Error('Order not found');
+      const updatedOrder = await order.save();
+      res.json(updatedOrder);
+    } else {
+      res.status(404).json({ message: 'Order not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 };
 
 // 5. CANCEL ORDER
 const cancelOrder = async (req, res) => {
-  const order = await Order.findById(req.params.id);
+  try {
+    const order = await Order.findById(req.params.id);
 
-  if (order) {
-    if (order.status === 'Delivered' || order.status === 'Cancelled') {
-      res.status(400);
-      throw new Error('Cannot cancel an order that is delivered or already cancelled');
+    if (order) {
+      if (order.status === 'Delivered' || order.status === 'Cancelled') {
+        return res.status(400).json({ message: 'Cannot cancel an order that is delivered or already cancelled' });
+      }
+      
+      // Optional: Add logic here to re-increase stock if an order is cancelled
+
+      order.status = 'Cancelled';
+      const updatedOrder = await order.save();
+      res.json(updatedOrder);
+    } else {
+      res.status(404).json({ message: 'Order not found' });
     }
-    
-    // Optional: Add logic here to re-increase stock if an order is cancelled
-
-    order.status = 'Cancelled';
-    const updatedOrder = await order.save();
-    res.json(updatedOrder);
-  } else {
-    res.status(404);
-    throw new Error('Order not found');
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 };
 
 // 6. RETURN ORDER
 const returnOrder = async (req, res) => {
-  const order = await Order.findById(req.params.id);
-  const { reason, condition, comment } = req.body;
+  try {
+    const order = await Order.findById(req.params.id);
+    const { reason, condition, comment } = req.body;
 
-  if (order) {
-    if (order.status !== 'Delivered') {
-      res.status(400);
-      throw new Error('Can only return delivered orders');
+    if (order) {
+      if (order.status !== 'Delivered') {
+        return res.status(400).json({ message: 'Can only return delivered orders' });
+      }
+
+      order.status = 'Return Requested';
+      order.returnInfo = {
+        reason,
+        condition,
+        comment,
+        requestedAt: Date.now()
+      };
+
+      const updatedOrder = await order.save();
+      res.json(updatedOrder);
+    } else {
+      res.status(404).json({ message: 'Order not found' });
     }
-
-    order.status = 'Return Requested';
-    order.returnInfo = {
-      reason,
-      condition,
-      comment,
-      requestedAt: Date.now()
-    };
-
-    const updatedOrder = await order.save();
-    res.json(updatedOrder);
-  } else {
-    res.status(404);
-    throw new Error('Order not found');
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
   }
 };
 

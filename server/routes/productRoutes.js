@@ -19,9 +19,9 @@ const { protect, isAdmin } = require('../middleware/authMiddleware');
 // Public routes
 router.get('/', getProducts);
 router.get('/featured', getFeaturedProducts);
-router.get('/reset-stock-fix', resetAllStock);
-router.get('/:id', getProductById);
+router.get('/reset-stock-fix', protect, isAdmin, resetAllStock);
 router.get('/category/:id', getProductsByCategory);
+router.get('/:id', getProductById);
 
 // Protected routes
 router.post('/:id/reviews', protect, createProductReview);

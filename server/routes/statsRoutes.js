@@ -3,10 +3,11 @@ const router = express.Router();
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const { protect, isAdmin } = require('../middleware/authMiddleware');
 
 // @route   GET /api/stats
 // @desc    Get Admin Dashboard Stats
-router.get('/', async (req, res) => {
+router.get('/', protect, isAdmin, async (req, res) => {
   try {
     // 1. Basic Counts
     const productsCount = await Product.countDocuments();

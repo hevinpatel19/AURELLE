@@ -53,14 +53,8 @@ const ProductPage = () => {
           // Fetch Related Products (same category)
           if (data.category && data.category._id) {
             try {
-              // Use the optimized endpoint if available, or fallback to filter
-              // Ideally backend has /api/products/:id/related. 
-              // Let's rely on client-side filter for safety as verified in prev steps
-              const { data: allProducts } = await axios.get(`${API_BASE_URL}/api/products`);
-              const filtered = allProducts
-                .filter(p => p.category?._id === data.category._id && p._id !== data._id)
-                .slice(0, 3);
-              setRelatedProducts(filtered);
+              const { data: related } = await axios.get(`${API_BASE_URL}/api/products/${id}/related`);
+              setRelatedProducts(related);
             } catch (err) {
               console.error("Related fetch error", err);
             }

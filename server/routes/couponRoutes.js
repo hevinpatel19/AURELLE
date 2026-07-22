@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const Coupon = require('../models/Coupon');
+const { protect, isAdmin } = require('../middleware/authMiddleware');
 
 // 1. CREATE Coupon (Admin)
-router.post('/', async (req, res) => {
+router.post('/', protect, isAdmin, async (req, res) => {
   try {
     const { code, discountPercentage, expirationDate } = req.body;
 
@@ -27,7 +28,7 @@ router.post('/', async (req, res) => {
 });
 
 // 2. GET ALL Coupons (Admin)
-router.get('/', async (req, res) => {
+router.get('/', protect, isAdmin, async (req, res) => {
   try {
     const coupons = await Coupon.find({}).sort({ createdAt: -1 });
     res.json(coupons);
@@ -37,7 +38,7 @@ router.get('/', async (req, res) => {
 });
 
 // 3. DELETE Coupon (Admin)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', protect, isAdmin, async (req, res) => {
   try {
     await Coupon.findByIdAndDelete(req.params.id);
     res.json({ message: 'Coupon deleted' });
@@ -49,6 +50,11 @@ router.delete('/:id', async (req, res) => {
 // 4. VALIDATE Coupon (User at Checkout)
 router.post('/validate', async (req, res) => {
   const { couponCode } = req.body;
+
+  if (!couponCode || typeof couponCode !== 'string') {
+    return res.status(400).json({ message: 'Coupon code is required' });
+  }
+
   try {
     const coupon = await Coupon.findOne({ code: couponCode.toUpperCase() });
 

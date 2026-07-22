@@ -455,7 +455,7 @@ const CartPage = () => {
                           setCouponCode(e.target.value);
                           setCouponError('');
                         }}
-                        onKeyPress={(e) => e.key === 'Enter' && handleApplyCoupon()}
+                        onKeyDown={(e) => e.key === 'Enter' && handleApplyCoupon()}
                         placeholder="Enter code"
                         style={{
                           flex: 1,
