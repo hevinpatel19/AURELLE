@@ -3,12 +3,9 @@ import axios from 'axios';
 import API_BASE_URL from '../api';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { useAuth } from '../context/AuthContext';
-
 const WishlistPage = () => {
   const [wishlist, setWishlist] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { addToCart, cart } = useAuth();
   const [moving, setMoving] = useState(false);
 
   const fetchWishlist = async () => {

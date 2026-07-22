@@ -430,14 +430,6 @@ const StatusDropdown = ({ status, onChange }) => {
 const OrderDetailsModal = ({ order, onClose }) => {
   if (!order) return null;
 
-  // Helpers
-  const getColor = (s) => {
-    if (s === 'Delivered' || s === 'Paid') return '#10B981';
-    if (s === 'Cancelled' || s === 'Unpaid') return '#EF4444';
-    if (s === 'Shipped') return '#3B82F6';
-    return 'var(--gold)';
-  };
-
   // Determine timeline progress
   const timelineSteps = [
     { label: 'Placed', date: order.createdAt, active: true },
@@ -649,11 +641,12 @@ const OrderManagement = ({ token }) => {
     }
   };
 
-  useEffect(() => { fetchOrders(); }, [token]);
+  useEffect(() => { fetchOrders(); // eslint-disable-next-line
+  }, [token]);
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      const { data } = await axios.put(`${API_BASE_URL}/api/orders/${id}/status`,
+      await axios.put(`${API_BASE_URL}/api/orders/${id}/status`,
         { status: newStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
