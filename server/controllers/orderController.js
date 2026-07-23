@@ -1,16 +1,19 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User'); // <--- ADDED: Necessary to clear the cart
+const Coupon = require('../models/Coupon');
 
 // 1. Create New Order (With Stock Deduction & Cart Clearing)
 const addOrderItems = async (req, res) => {
-  const { orderItems, shippingAddress, paymentMethod, totalPrice, isPaid } = req.body;
+  const { orderItems, shippingAddress, paymentMethod, totalPrice, isPaid, couponCode } = req.body;
 
   if (orderItems && orderItems.length === 0) {
     res.status(400);
     throw new Error('No order items');
   } else {
-    // A. Validate Stock & Deduct Quantity
+    // A. Validate Stock & Deduct Quantity & Recalculate Prices
+    let calculatedSubtotal = 0;
+
     for (const item of orderItems) {
       const product = await Product.findById(item.product);
       if (!product) {
@@ -53,6 +56,39 @@ const addOrderItems = async (req, res) => {
       }
       
       await product.save();
+
+      // Recalculate subtotal using verified database price
+      calculatedSubtotal += product.price * item.qty;
+      // Overwrite client-supplied price with backend-validated database price
+      item.price = product.price;
+    }
+
+    // Recalculate discount based on coupon code
+    let discountPercentage = 0;
+    if (couponCode && typeof couponCode === 'string' && couponCode.trim() !== '') {
+      const coupon = await Coupon.findOne({ code: couponCode.toUpperCase() });
+      if (!coupon) {
+        res.status(400);
+        throw new Error('Invalid coupon code');
+      }
+      if (new Date() > coupon.expirationDate) {
+        res.status(400);
+        throw new Error('Coupon has expired');
+      }
+      if (coupon.isActive === false) {
+        res.status(400);
+        throw new Error('Coupon is inactive');
+      }
+      discountPercentage = coupon.discountPercentage;
+    }
+
+    const calculatedDiscount = Math.round(calculatedSubtotal * (discountPercentage / 100));
+    const calculatedTotal = Math.max(0, calculatedSubtotal - calculatedDiscount);
+
+    // Verify frontend-provided totalPrice (allowing ±1 tolerance due to potential rounding differences)
+    if (Math.abs(totalPrice - calculatedTotal) > 1) {
+      res.status(400);
+      throw new Error(`Order total verification failed. Expected: ₹${calculatedTotal}, Received: ₹${totalPrice}`);
     }
 
     // B. Create the Order
@@ -64,7 +100,7 @@ const addOrderItems = async (req, res) => {
       user: req.user._id,
       shippingAddress,
       paymentMethod,
-      totalPrice,
+      totalPrice: calculatedTotal,
       isPaid: isPaid || false, 
       paidAt: isPaid ? Date.now() : null, 
       status: 'Processing' 
