@@ -242,44 +242,93 @@ const OrderPage = () => {
                       paddingTop: 'var(--space-lg)',
                       borderTop: 'var(--border-subtle)',
                       display: 'flex',
+                      flexDirection: 'column',
                       gap: 'var(--space-md)',
-                      justifyContent: 'flex-end'
                     }}>
-                      {(order.status === 'Processing' || order.status === 'Shipped') && (
-                        <button
-                          onClick={() => handleCancelOrder(order._id)}
-                          className="btn-outline"
-                          style={{
-                            padding: 'var(--space-sm) var(--space-lg)',
-                            borderColor: 'var(--burgundy)',
-                            color: 'var(--burgundy)'
-                          }}
-                        >
-                          Cancel Order
-                        </button>
+                      {/* Return Rejection Alert */}
+                      {order.returnInfo?.adminAction === 'Rejected' && (
+                        <div style={{
+                          padding: 'var(--space-md) var(--space-lg)',
+                          background: 'rgba(239, 68, 68, 0.08)',
+                          border: '1px solid rgba(239, 68, 68, 0.25)',
+                          display: 'flex',
+                          gap: 'var(--space-md)',
+                          alignItems: 'flex-start'
+                        }}>
+                          <span style={{ color: '#EF4444', fontSize: '1.1rem', flexShrink: 0, marginTop: '1px' }}>⚠</span>
+                          <div>
+                            <p style={{
+                              color: '#EF4444',
+                              fontSize: '0.75rem',
+                              fontWeight: '600',
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              marginBottom: '4px'
+                            }}>
+                              Return Request Rejected
+                            </p>
+                            <p style={{ color: 'var(--mist)', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                              {order.returnInfo.rejectionReason}
+                            </p>
+                          </div>
+                        </div>
                       )}
 
-                      {order.status === 'Delivered' && (
-                        <button
-                          onClick={() => { setSelectedOrderId(order._id); setShowReturnModal(true); }}
-                          className="btn-primary"
-                          style={{ padding: 'var(--space-sm) var(--space-lg)' }}
-                        >
-                          <span>Return Order</span>
-                        </button>
+                      {/* Return Approved Confirmation */}
+                      {order.status === 'Returned' && order.returnInfo?.adminAction === 'Approved' && (
+                        <div style={{
+                          padding: 'var(--space-md) var(--space-lg)',
+                          background: 'rgba(139, 92, 246, 0.08)',
+                          border: '1px solid rgba(139, 92, 246, 0.25)',
+                          display: 'flex',
+                          gap: 'var(--space-md)',
+                          alignItems: 'center'
+                        }}>
+                          <span style={{ color: '#8B5CF6', fontSize: '1.1rem' }}>✓</span>
+                          <p style={{ color: '#8B5CF6', fontSize: '0.85rem', fontWeight: '500' }}>
+                            Your return has been approved and processed.
+                          </p>
+                        </div>
                       )}
 
-                      {order.status === 'Return Requested' && (
-                        <span style={{ color: 'var(--gold)', fontSize: '0.85rem' }}>
-                          Return request pending
-                        </span>
-                      )}
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: 'var(--space-md)', justifyContent: 'flex-end' }}>
+                        {(order.status === 'Processing' || order.status === 'Shipped') && (
+                          <button
+                            onClick={() => handleCancelOrder(order._id)}
+                            className="btn-outline"
+                            style={{
+                              padding: 'var(--space-sm) var(--space-lg)',
+                              borderColor: 'var(--burgundy)',
+                              color: 'var(--burgundy)'
+                            }}
+                          >
+                            Cancel Order
+                          </button>
+                        )}
 
-                      {order.status === 'Returned' && (
-                        <span style={{ color: '#8B5CF6', fontSize: '0.85rem' }}>
-                          Return completed
-                        </span>
-                      )}
+                        {order.status === 'Delivered' && !order.returnInfo?.adminAction && (
+                          <button
+                            onClick={() => { setSelectedOrderId(order._id); setShowReturnModal(true); }}
+                            className="btn-primary"
+                            style={{ padding: 'var(--space-sm) var(--space-lg)' }}
+                          >
+                            <span>Return Order</span>
+                          </button>
+                        )}
+
+                        {order.status === 'Return Requested' && (
+                          <span style={{ color: 'var(--gold)', fontSize: '0.85rem' }}>
+                            Return request pending
+                          </span>
+                        )}
+
+                        {order.status === 'Returned' && (
+                          <span style={{ color: '#8B5CF6', fontSize: '0.85rem' }}>
+                            Return completed
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -7,7 +7,9 @@ const {
   getOrders, 
   updateOrderStatus, 
   cancelOrder, 
-  returnOrder  
+  returnOrder,
+  approveReturn,
+  rejectReturn  
 } = require('../controllers/orderController');
 
 const protect = passport.authenticate('jwt', { session: false });
@@ -32,6 +34,10 @@ router.route('/myorders')
 // Admin Status Update
 router.route('/:id/status')
   .put(protect, admin, updateOrderStatus);
+
+// Admin Return Actions
+router.route('/:id/return/approve').put(protect, admin, approveReturn);
+router.route('/:id/return/reject').put(protect, admin, rejectReturn);
 
 // User Actions (Cancel & Return)
 router.route('/:id/cancel').put(protect, cancelOrder);

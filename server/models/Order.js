@@ -32,7 +32,9 @@ const orderSchema = mongoose.Schema({
      reason: { type: String },
      condition: { type: String },
      comment: { type: String },
-     requestedAt: { type: Date }
+     requestedAt: { type: Date },
+     adminAction: { type: String }, // 'Approved' or 'Rejected'
+     rejectionReason: { type: String }
   }
 }, {
   timestamps: true,

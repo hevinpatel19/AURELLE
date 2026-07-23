@@ -205,6 +205,148 @@ const styles = `
   .status-returned { background: rgba(139, 92, 246, 0.1); color: #8B5CF6; border: 1px solid rgba(139, 92, 246, 0.2); }
   .status-return-requested { background: rgba(217, 119, 6, 0.1); color: #D97706; border: 1px solid rgba(217, 119, 6, 0.2); }
 
+  /* Return Management Styles */
+  .return-card {
+    background: var(--charcoal);
+    border: var(--border-subtle);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+    transition: all 0.3s var(--ease-out-expo);
+  }
+
+  .return-card:hover {
+    border-color: rgba(217, 119, 6, 0.3);
+    box-shadow: 0 4px 20px rgba(217, 119, 6, 0.08);
+  }
+
+  .return-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    background: var(--slate);
+    border-bottom: var(--border-subtle);
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .return-card-body {
+    padding: 1.5rem;
+  }
+
+  .return-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .return-info-item {
+    padding: 1rem;
+    background: var(--slate);
+    border: var(--border-subtle);
+    border-radius: 2px;
+  }
+
+  .return-info-label {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fog);
+    margin-bottom: 0.5rem;
+    display: block;
+  }
+
+  .return-info-value {
+    color: var(--ivory);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .return-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: var(--border-subtle);
+  }
+
+  .return-btn-approve {
+    padding: 0.65rem 1.5rem;
+    background: rgba(16, 185, 129, 0.15);
+    color: #10B981;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .return-btn-approve:hover {
+    background: #10B981;
+    color: var(--abyss);
+    transform: translateY(-1px);
+  }
+
+  .return-btn-reject {
+    padding: 0.65rem 1.5rem;
+    background: rgba(239, 68, 68, 0.15);
+    color: #EF4444;
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+
+  .return-btn-reject:hover {
+    background: #EF4444;
+    color: white;
+    transform: translateY(-1px);
+  }
+
+  .return-items-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .return-item-chip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: var(--border-subtle);
+  }
+
+  .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    background: #EF4444;
+    color: white;
+    margin-left: 6px;
+    animation: badgePulse 2s ease-in-out infinite;
+  }
+
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+
   /* Dropdown Styles */
   .status-dropdown-container {
     position: relative;
@@ -1126,12 +1268,207 @@ const InventoryView = ({ token, products, categories, fetchData }) => {
 };
 
 // =========================================================================
+// 4. RETURN MANAGEMENT
+// =========================================================================
+const ReturnManagement = ({ token, onUpdate }) => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchOrders = async () => {
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setOrders(data.filter(o => o.status === 'Return Requested'));
+      setLoading(false);
+    } catch (error) {
+      toast.error('Failed to load return requests');
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchOrders(); // eslint-disable-next-line
+  }, [token]);
+
+  const handleApprove = async (orderId) => {
+    const result = await Swal.fire({
+      title: 'Approve Return?',
+      text: 'Stock will be restored for all items in this order.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10B981',
+      cancelButtonColor: '#6B7280',
+      confirmButtonText: 'Approve Return',
+      background: '#111111',
+      color: '#E8E8E8'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await axios.put(`${API_BASE_URL}/api/orders/${orderId}/return/approve`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        toast.success('Return approved — stock restored');
+        fetchOrders();
+        if (onUpdate) onUpdate();
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Failed to approve return');
+      }
+    }
+  };
+
+  const handleReject = async (orderId) => {
+    const { value: rejectionReason } = await Swal.fire({
+      title: 'Reject Return',
+      input: 'textarea',
+      inputLabel: 'Reason for rejection (visible to customer)',
+      inputPlaceholder: 'e.g. Item shows signs of wear beyond acceptable condition...',
+      inputAttributes: { 'aria-label': 'Rejection reason' },
+      showCancelButton: true,
+      confirmButtonColor: '#EF4444',
+      cancelButtonColor: '#6B7280',
+      confirmButtonText: 'Reject Return',
+      background: '#111111',
+      color: '#E8E8E8',
+      inputValidator: (value) => {
+        if (!value || value.trim() === '') {
+          return 'Please provide a reason for rejection';
+        }
+      }
+    });
+
+    if (rejectionReason) {
+      try {
+        await axios.put(`${API_BASE_URL}/api/orders/${orderId}/return/reject`,
+          { rejectionReason },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        toast.success('Return rejected — customer notified');
+        fetchOrders();
+        if (onUpdate) onUpdate();
+      } catch (error) {
+        toast.error(error.response?.data?.message || 'Failed to reject return');
+      }
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="admin-section-title">Return Requests</h2>
+
+      {loading ? (
+        <p style={{ color: 'var(--fog)', padding: '2rem' }}>Loading return requests...</p>
+      ) : orders.length === 0 ? (
+        <div style={{
+          background: 'var(--charcoal)',
+          border: 'var(--border-subtle)',
+          padding: '4rem',
+          textAlign: 'center'
+        }}>
+          <p style={{ color: 'var(--stone)', fontSize: '1.1rem', marginBottom: '0.5rem' }}>No pending return requests</p>
+          <p style={{ color: 'var(--fog)', fontSize: '0.85rem' }}>All returns have been handled.</p>
+        </div>
+      ) : (
+        <div>
+          {orders.map(order => (
+            <div key={order._id} className="return-card">
+              {/* Card Header */}
+              <div className="return-card-header">
+                <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--fog)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '2px' }}>Order</span>
+                    <span style={{ fontFamily: 'monospace', fontWeight: '600', color: 'var(--ivory)', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '4px' }}>
+                      #{order._id.slice(-6).toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--fog)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '2px' }}>Customer</span>
+                    <span style={{ color: 'var(--ivory)', fontWeight: '500' }}>{order.user?.name || 'Deleted User'}</span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--fog)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '2px' }}>Total</span>
+                    <span style={{ color: 'var(--gold)', fontWeight: '600' }}>₹{order.totalPrice.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.6rem', color: 'var(--fog)', textTransform: 'uppercase', letterSpacing: '0.1em', display: 'block', marginBottom: '2px' }}>Requested</span>
+                    <span style={{ color: 'var(--mist)' }}>
+                      {order.returnInfo?.requestedAt
+                        ? new Date(order.returnInfo.requestedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '—'}
+                    </span>
+                  </div>
+                </div>
+                <span className="status-badge status-return-requested">Return Requested</span>
+              </div>
+
+              {/* Card Body */}
+              <div className="return-card-body">
+                {/* Items */}
+                <span className="return-info-label" style={{ marginBottom: '0.75rem' }}>Order Items</span>
+                <div className="return-items-list">
+                  {order.orderItems.map((item, idx) => (
+                    <div key={idx} className="return-item-chip">
+                      <img src={item.image} alt="" style={{ width: '32px', height: '40px', objectFit: 'cover' }} />
+                      <div>
+                        <div style={{ color: 'var(--ivory)', fontSize: '0.8rem', fontWeight: '500' }}>{item.name}</div>
+                        <div style={{ color: 'var(--fog)', fontSize: '0.7rem' }}>
+                          Qty: {item.qty}{item.size ? ` · ${item.size}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Return Info */}
+                <div className="return-info-grid">
+                  <div className="return-info-item">
+                    <span className="return-info-label">Reason</span>
+                    <span className="return-info-value">{order.returnInfo?.reason || '—'}</span>
+                  </div>
+                  <div className="return-info-item">
+                    <span className="return-info-label">Item Condition</span>
+                    <span className="return-info-value">{order.returnInfo?.condition || '—'}</span>
+                  </div>
+                  <div className="return-info-item">
+                    <span className="return-info-label">Customer Comment</span>
+                    <span className="return-info-value" style={{ fontSize: '0.85rem' }}>
+                      {order.returnInfo?.comment || 'No comment provided'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="return-actions">
+                  <button
+                    onClick={() => handleReject(order._id)}
+                    className="return-btn-reject"
+                  >
+                    ✕ Reject
+                  </button>
+                  <button
+                    onClick={() => handleApprove(order._id)}
+                    className="return-btn-approve"
+                  >
+                    ✓ Approve Return
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// =========================================================================
 // MAIN ADMIN PAGE
 // =========================================================================
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('analytics');
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState([]);
+  const [returnCount, setReturnCount] = useState(0);
   const { token } = useAuth();
 
   const fetchData = async () => {
@@ -1147,7 +1484,20 @@ const AdminPage = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  // Fetch return request count for the badge
+  const fetchReturnCount = async () => {
+    try {
+      const { data } = await axios.get(`${API_BASE_URL}/api/orders`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setReturnCount(data.filter(o => o.status === 'Return Requested').length);
+    } catch (error) {
+      // Silently fail — badge just won't show
+    }
+  };
+
+  useEffect(() => { fetchData(); fetchReturnCount(); // eslint-disable-next-line
+  }, []);
 
   return (
     <>
@@ -1160,6 +1510,7 @@ const AdminPage = () => {
               {[
                 { id: 'analytics', label: '📊 Analytics' },
                 { id: 'orders', label: '📦 Orders' },
+                { id: 'returns', label: '🔄 Returns', badge: returnCount },
                 { id: 'create', label: '➕ Add Products' },
                 { id: 'inventory', label: '🏷️ Inventory' },
                 { id: 'coupons', label: '🎟️ Coupons' }
@@ -1170,6 +1521,7 @@ const AdminPage = () => {
                   className={`admin-tab ${activeTab === tab.id ? 'active' : ''}`}
                 >
                   {tab.label}
+                  {tab.badge > 0 && <span className="tab-badge">{tab.badge}</span>}
                 </button>
               ))}
             </div>
@@ -1177,6 +1529,7 @@ const AdminPage = () => {
 
           {activeTab === 'analytics' && <DashboardAnalytics />}
           {activeTab === 'orders' && <OrderManagement token={token} />}
+          {activeTab === 'returns' && <ReturnManagement token={token} onUpdate={fetchReturnCount} />}
           {activeTab === 'create' && <AddComponents token={token} categories={categories} fetchData={fetchData} />}
           {activeTab === 'inventory' && <InventoryView token={token} products={products} categories={categories} fetchData={fetchData} />}
           {activeTab === 'coupons' && <CouponManager />}

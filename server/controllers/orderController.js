@@ -138,7 +138,7 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-// 5. CANCEL ORDER
+// 5. CANCEL ORDER (WITH STOCK RESTORATION)
 const cancelOrder = async (req, res) => {
   try {
     const order = await Order.findById(req.params.id);
@@ -148,7 +148,22 @@ const cancelOrder = async (req, res) => {
         return res.status(400).json({ message: 'Cannot cancel an order that is delivered or already cancelled' });
       }
       
-      // Optional: Add logic here to re-increase stock if an order is cancelled
+      // Re-increase stock for each item in the order
+      for (const item of order.orderItems) {
+        const product = await Product.findById(item.product);
+        if (product) {
+          if (product.hasVariations && item.size) {
+            const variant = product.variants.find(v => v.value === item.size);
+            if (variant) {
+              variant.stock += item.qty;
+            }
+            // countInStock will be recalculated by the pre-save middleware
+          } else {
+            product.countInStock += item.qty;
+          }
+          await product.save();
+        }
+      }
 
       order.status = 'Cancelled';
       const updatedOrder = await order.save();
@@ -192,11 +207,90 @@ const returnOrder = async (req, res) => {
   }
 };
 
+// 7. APPROVE RETURN (Admin)
+const approveReturn = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.status !== 'Return Requested') {
+      return res.status(400).json({ message: 'This order does not have a pending return request' });
+    }
+
+    // Re-increase stock for each item in the order
+    for (const item of order.orderItems) {
+      const product = await Product.findById(item.product);
+      if (product) {
+        if (product.hasVariations && item.size) {
+          const variant = product.variants.find(v => v.value === item.size);
+          if (variant) {
+            variant.stock += item.qty;
+          }
+          // countInStock will be recalculated by the pre-save middleware
+        } else {
+          product.countInStock += item.qty;
+        }
+        await product.save();
+      }
+    }
+
+    order.status = 'Returned';
+    order.returnInfo = {
+      ...order.returnInfo.toObject(),
+      adminAction: 'Approved'
+    };
+
+    const updatedOrder = await order.save();
+    res.json(updatedOrder);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
+// 8. REJECT RETURN (Admin)
+const rejectReturn = async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+    const { rejectionReason } = req.body;
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    if (order.status !== 'Return Requested') {
+      return res.status(400).json({ message: 'This order does not have a pending return request' });
+    }
+
+    if (!rejectionReason || rejectionReason.trim() === '') {
+      return res.status(400).json({ message: 'Please provide a reason for rejection' });
+    }
+
+    order.status = 'Delivered';
+    order.returnInfo = {
+      ...order.returnInfo.toObject(),
+      adminAction: 'Rejected',
+      rejectionReason: rejectionReason.trim()
+    };
+
+    const updatedOrder = await order.save();
+    res.json(updatedOrder);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server Error' });
+  }
+};
+
 module.exports = { 
     addOrderItems, 
     getMyOrders, 
     getOrders, 
     updateOrderStatus, 
     cancelOrder, 
-    returnOrder 
+    returnOrder,
+    approveReturn,
+    rejectReturn 
 };
