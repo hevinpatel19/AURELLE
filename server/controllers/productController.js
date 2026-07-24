@@ -211,13 +211,30 @@ const updateProductStock = async (req, res) => {
 // --- TEMPORARY: RUN THIS ONCE TO RESET STOCK ---
 const resetAllStock = async (req, res) => {
   try {
-    // Sets ALL products to have 15 stock
-    await Product.updateMany({}, { $set: { countInStock: 15 } });
-    res.json({ message: "All products stock reset to 15!" });
+    const products = await Product.find({});
+    
+    for (const product of products) {
+      if (product.hasVariations && product.variants && product.variants.length > 0) {
+        // Reset stock for each variant option (e.g. 15 per variant)
+        product.variants.forEach((variant) => {
+          variant.stock = 15;
+        });
+      } else {
+        // Simple product with no variations
+        product.countInStock = 15;
+      }
+      // .save() executes productSchema.pre('save') hook, 
+      // ensuring countInStock matches variants sum
+      await product.save();
+    }
+
+    res.json({ message: "All products and variant stock reset to 15!" });
   } catch (error) {
-    res.status(500).json({ message: "Error resetting stock" });
+    console.error("Stock Reset Error:", error);
+    res.status(500).json({ message: "Error resetting stock", error: error.message });
   }
 };
+
 
 module.exports = { 
   createProduct, 
