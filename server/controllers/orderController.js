@@ -11,56 +11,115 @@ const addOrderItems = async (req, res) => {
     res.status(400);
     throw new Error('No order items');
   } else {
-    // A. Validate Stock & Deduct Quantity & Recalculate Prices
+    // A. Validate Stock & Deduct Quantity Atomically (Prevents Race Conditions)
     let calculatedSubtotal = 0;
+    const deductedItems = [];
 
-    for (const item of orderItems) {
-      const product = await Product.findById(item.product);
-      if (!product) {
-        res.status(404);
-        throw new Error(`Product not found: ${item.name}`);
-      }
+    try {
+      for (const item of orderItems) {
+        const existingProduct = await Product.findById(item.product);
+        if (!existingProduct) {
+          res.status(404);
+          throw new Error(`Product not found: ${item.name}`);
+        }
 
-      // Check for Variations (Size/Color) vs Simple Product
-      if (product.hasVariations) {
-          // Item MUST have a 'size' (variant value)
-          const variantValue = item.size; 
-          
+        let updatedProduct;
+
+        if (existingProduct.hasVariations) {
+          const variantValue = item.size;
           if (!variantValue) {
-              res.status(400);
-              throw new Error(`Please select a ${product.variationType} for ${item.name}`);
-          }
-
-          // Find specific variant (e.g. "S", "Red")
-          const variant = product.variants.find(v => v.value === variantValue);
-
-          if (!variant) {
-              res.status(400);
-              throw new Error(`${product.variationType} '${variantValue}' not available for ${item.name}`);
-          }
-          if (variant.stock < item.qty) {
             res.status(400);
-            throw new Error(`Not enough stock for ${item.name} (${product.variationType}: ${variantValue})`);
+            throw new Error(`Please select a ${existingProduct.variationType} for ${item.name}`);
           }
 
-          // Deduct Stock
-          variant.stock -= item.qty;
-          product.countInStock -= item.qty;
-      } else {
-          // Simple Product (No Variants)
-          if (product.countInStock < item.qty) {
-             res.status(400);
-             throw new Error(`Not enough stock for ${item.name}`);
+          // Check if variant exists at all
+          const variantExists = existingProduct.variants.some(v => v.value === variantValue);
+          if (!variantExists) {
+            res.status(400);
+            throw new Error(`${existingProduct.variationType} '${variantValue}' not available for ${item.name}`);
           }
-          product.countInStock -= item.qty;
+
+          // Atomically check stock >= item.qty and decrement stock in 1 query
+          updatedProduct = await Product.findOneAndUpdate(
+            {
+              _id: item.product,
+              variants: {
+                $elemMatch: {
+                  value: variantValue,
+                  stock: { $gte: item.qty }
+                }
+              }
+            },
+            {
+              $inc: {
+                "variants.$.stock": -item.qty,
+                "countInStock": -item.qty
+              }
+            },
+            { new: true }
+          );
+
+          if (!updatedProduct) {
+            res.status(400);
+            throw new Error(`Not enough stock for ${item.name} (${existingProduct.variationType}: ${variantValue})`);
+          }
+
+          deductedItems.push({
+            productId: item.product,
+            hasVariations: true,
+            variantValue: variantValue,
+            qty: item.qty
+          });
+        } else {
+          // Simple Product (No Variants) - Atomically check countInStock >= item.qty
+          updatedProduct = await Product.findOneAndUpdate(
+            {
+              _id: item.product,
+              countInStock: { $gte: item.qty }
+            },
+            {
+              $inc: { countInStock: -item.qty }
+            },
+            { new: true }
+          );
+
+          if (!updatedProduct) {
+            res.status(400);
+            throw new Error(`Not enough stock for ${item.name}`);
+          }
+
+          deductedItems.push({
+            productId: item.product,
+            hasVariations: false,
+            qty: item.qty
+          });
+        }
+
+        // Recalculate subtotal using database price
+        calculatedSubtotal += existingProduct.price * item.qty;
+        item.price = existingProduct.price;
       }
-      
-      await product.save();
-
-      // Recalculate subtotal using verified database price
-      calculatedSubtotal += product.price * item.qty;
-      // Overwrite client-supplied price with backend-validated database price
-      item.price = product.price;
+    } catch (error) {
+      // Rollback any stock already deducted in this loop if a subsequent item fails
+      for (const rollbackItem of deductedItems) {
+        if (rollbackItem.hasVariations) {
+          await Product.updateOne(
+            { _id: rollbackItem.productId, "variants.value": rollbackItem.variantValue },
+            {
+              $inc: {
+                "variants.$.stock": rollbackItem.qty,
+                "countInStock": rollbackItem.qty
+              }
+            }
+          );
+        } else {
+          await Product.updateOne(
+            { _id: rollbackItem.productId },
+            { $inc: { countInStock: rollbackItem.qty } }
+          );
+        }
+      }
+      throw error;
     }
 
     // Recalculate discount based on coupon code
